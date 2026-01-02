@@ -1,0 +1,38 @@
+/* CSS Custom Properties */
+:root {
+  /* Paper/Ink */
+  --color-paper: #f0e6d3;
+  --color-ink: #1a1a1a;
+
+  /* Neon palette */
+  --neon-primary: #ff2a6d;
+  --neon-secondary: #05d9e8;
+  --neon-tertiary: #f9f002;
+  --neon-accent: #d300c5;
+
+  /* UI backgrounds */
+  --ui-bg: rgba(10, 10, 15, 0.9);
+  --ui-bg-light: rgba(10, 10, 15, 0.7);
+
+  /* Game background */
+  --game-bg: #0a0a0f;
+
+  /* Typography */
+  --font-terminal: 'VT323', monospace;
+  --font-pixel: 'Press Start 2P', monospace;
+
+  /* Spacing */
+  --spacing-xs: 0.25rem;
+  --spacing-sm: 0.5rem;
+  --spacing-md: 1rem;
+  --spacing-lg: 2rem;
+
+  /* Border radius */
+  --radius-sm: 2px;
+  --radius-md: 4px;
+
+  /* Transitions */
+  --transition-fast: 0.15s;
+  --transition-normal: 0.3s;
+  --transition-slow: 0.8s;
+}
