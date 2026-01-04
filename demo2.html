@@ -1,0 +1,1769 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+  <title>LAST_STOP // A Liminal RPG</title>
+  <link href="https://fonts.googleapis.com/css2?family=VT323&family=Press+Start+2P&display=swap" rel="stylesheet">
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+    :root { --paper: #f0e6d3; --ink: #1a1a1a; --neon-pink: #ff2a6d; --neon-blue: #05d9e8; --neon-yellow: #f9f002; --neon-purple: #d300c5; --rust: #8b4513; --coffee: 
+#3c1810; }
+    @keyframes blink { 0%, 50% { opacity: 1; } 51%, 100% { opacity: 0; } }
+    @keyframes pulse { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.02); } }
+    @keyframes float { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-4px); } }
+    @keyframes flicker { 0%, 95%, 100% { opacity: 1; } 96%, 99% { opacity: 0.7; } }
+    @keyframes neonGlow { 0%, 100% { text-shadow: 0 0 10px var(--neon-pink), 0 0 20px var(--neon-pink), 0 0 40px var(--neon-pink); } 50% { text-shadow: 0 0 5px 
+var(--neon-pink), 0 0 10px var(--neon-pink), 0 0 20px var(--neon-pink); } }
+    body { font-family: 'VT323', monospace; background: #0a0a0f; color: var(--paper); overflow: hidden; height: 100vh; height: 100dvh; width: 100vw; position: fixed; 
+touch-action: none; user-select: none; }
+    #game-container { position: absolute; top: 0; left: 0; width: 100%; height: 100%; }
+    .crt-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; z-index: 1000; background: repeating-linear-gradient(0deg, 
+transparent, transparent 2px, rgba(0,0,0,0.1) 2px, rgba(0,0,0,0.1) 4px); }
+    .vignette { position: fixed; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; z-index: 999; background: radial-gradient(ellipse at center, transparent 
+50%, rgba(0,0,0,0.6) 100%); }
+    #title-screen { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: radial-gradient(ellipse at center, #1a0a1a 0%, #0a0a0f 100%); display: flex; 
+flex-direction: column; align-items: center; justify-content: center; z-index: 100; transition: opacity 0.8s, visibility 0.8s; padding: 1rem; }
+    #title-screen.hidden { opacity: 0; visibility: hidden; pointer-events: none; }
+    .title-art { font-family: 'Press Start 2P', monospace; font-size: clamp(1.5rem, 6vw, 3rem); color: var(--neon-pink); animation: neonGlow 2s infinite; text-align: 
+center; }
+    .title-sub { font-size: clamp(1rem, 3vw, 1.5rem); color: var(--neon-blue); margin-top: 0.5rem; opacity: 0.8; letter-spacing: 0.5em; }
+    .title-tagline { font-size: clamp(0.9rem, 2.5vw, 1.2rem); color: var(--paper); margin-top: 2rem; font-style: italic; text-align: center; max-width: 450px; opacity: 0.7; 
+line-height: 1.6; }
+    .start-btn { margin-top: 2.5rem; font-family: 'Press Start 2P', monospace; font-size: clamp(0.7rem, 2vw, 0.9rem); color: var(--neon-yellow); background: transparent; 
+border: 3px solid var(--neon-yellow); padding: 1rem 2rem; cursor: pointer; animation: blink 1.2s infinite; }
+    .start-btn:hover { background: var(--neon-yellow); color: #0a0a0f; animation: none; }
+    .title-controls { margin-top: 2rem; font-size: 0.9rem; color: rgba(255,255,255,0.4); text-align: center; line-height: 1.8; }
+    .title-controls kbd { background: rgba(255,255,255,0.1); padding: 0.2rem 0.5rem; border-radius: 3px; }
+    .title-credits { position: absolute; bottom: 1rem; font-size: 0.8rem; color: rgba(255,255,255,0.2); }
+    #game-world { position: absolute; top: 0; left: 0; width: 100%; height: 100%; display: none; background: #0a0a0f; }
+    #game-world.active { display: flex; align-items: center; justify-content: center; }
+    #game-canvas { display: block; image-rendering: pixelated; image-rendering: crisp-edges; }
+    #ui-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; z-index: 50; }
+    #location-bar { position: absolute; top: 0.5rem; left: 0.5rem; background: rgba(10,10,15,0.9); border: 2px solid var(--neon-pink); padding: 0.4rem 0.8rem; font-size: 
+clamp(0.8rem, 2vw, 1rem); color: var(--neon-pink); pointer-events: auto; animation: flicker 4s infinite; }
+    #time-panel { position: absolute; top: 0.5rem; left: 50%; transform: translateX(-50%); background: rgba(10,10,15,0.9); border: 2px solid var(--neon-blue); padding: 
+0.4rem 0.8rem; font-size: 0.9rem; pointer-events: auto; display: flex; align-items: center; gap: 0.8rem; }
+    #shift-time { color: var(--neon-blue); font-size: 1.1rem; }
+    #shift-label { color: var(--paper); opacity: 0.6; font-size: 0.7rem; }
+    #quest-tracker { position: absolute; top: 2.8rem; left: 0.5rem; background: rgba(10,10,15,0.85); border: 1px solid rgba(255,255,255,0.15); padding: 0.4rem 0.6rem; 
+font-size: 0.7rem; color: var(--neon-yellow); max-width: 220px; pointer-events: auto; }
+    #quest-tracker .quest-title { color: var(--neon-yellow); margin-bottom: 0.2rem; }
+    #quest-tracker .quest-obj { color: var(--paper); opacity: 0.8; font-size: 0.7rem; margin-top: 0.15rem; }
+    #stats-panel { position: absolute; top: 0.5rem; right: 0.5rem; background: rgba(10,10,15,0.9); border: 2px solid var(--neon-purple); padding: 0.5rem 0.7rem; font-size: 
+clamp(0.7rem, 1.8vw, 0.85rem); pointer-events: auto; min-width: 100px; }
+    .stat-row { display: flex; justify-content: space-between; gap: 0.5rem; margin: 0.15rem 0; }
+    .stat-label { color: var(--neon-purple); }
+    .stat-value { color: var(--neon-blue); }
+    .stat-bar { width: 100%; height: 6px; background: #222; margin-top: 3px; border: 1px solid #333; }
+    .stat-bar-fill { height: 100%; transition: width 0.3s; }
+    .stat-bar-fill.sanity { background: linear-gradient(90deg, var(--neon-purple), var(--neon-pink)); }
+    #inventory-bar { position: absolute; bottom: 10.5rem; left: 50%; transform: translateX(-50%); background: rgba(10,10,15,0.9); border: 2px solid var(--rust); padding: 
+0.3rem 0.5rem; display: flex; gap: 0.3rem; pointer-events: auto; }
+    @media (min-width: 769px) and (pointer: fine) { #inventory-bar { bottom: 0.5rem; } }
+    .inv-slot { width: 36px; height: 36px; background: rgba(0,0,0,0.5); border: 2px solid #444; display: flex; align-items: center; justify-content: center; font-size: 
+1.3rem; cursor: pointer; position: relative; flex-direction: column; }
+    .inv-slot:hover { border-color: var(--neon-yellow); }
+    .inv-slot.selected { border-color: var(--neon-pink); box-shadow: 0 0 10px var(--neon-pink); }
+    .inv-slot .count { position: absolute; bottom: 0px; right: 2px; font-size: 0.6rem; color: var(--neon-yellow); }
+    .inv-slot .key { position: absolute; top: 0px; left: 2px; font-size: 0.5rem; color: rgba(255,255,255,0.4); }
+    #interact-prompt { position: absolute; bottom: 17rem; left: 50%; transform: translateX(-50%); background: rgba(10,10,15,0.95); border: 2px solid var(--neon-pink); 
+padding: 0.4rem 0.8rem; font-size: clamp(0.8rem, 2vw, 1rem); color: var(--neon-pink); opacity: 0; transition: opacity 0.2s; animation: float 2s infinite; }
+    #interact-prompt.visible { opacity: 1; }
+    @media (min-width: 769px) and (pointer: fine) { #interact-prompt { bottom: 4rem; } }
+    #dialogue-box { position: absolute; bottom: 10rem; left: 50%; transform: translateX(-50%); width: calc(100% - 1rem); max-width: 600px; background: rgba(10,10,15,0.97); 
+border: 3px solid var(--paper); padding: 0.8rem 1rem; display: none; pointer-events: auto; }
+    #dialogue-box.active { display: block; }
+    @media (min-width: 769px) and (pointer: fine) { #dialogue-box { bottom: 3.5rem; } }
+    #dialogue-portrait { position: absolute; top: -50px; left: 10px; width: 60px; height: 60px; background: rgba(10,10,15,0.95); border: 2px solid var(--neon-blue); 
+display: flex; align-items: center; justify-content: center; font-size: 2rem; }
+    #dialogue-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.4rem; margin-left: 50px; }
+    #dialogue-speaker { font-size: clamp(0.9rem, 2.2vw, 1.1rem); color: var(--neon-blue); letter-spacing: 0.1em; }
+    #dialogue-text { font-size: clamp(1rem, 2.5vw, 1.2rem); color: var(--paper); line-height: 1.5; min-height: 2.5em; }
+    #dialogue-choices { margin-top: 0.7rem; display: flex; flex-direction: column; gap: 0.35rem; }
+    .dialogue-choice { background: transparent; border: 2px solid var(--neon-pink); color: var(--neon-pink); padding: 0.4rem 0.8rem; font-family: 'VT323', monospace; 
+font-size: clamp(0.85rem, 1.8vw, 1rem); cursor: pointer; text-align: left; transition: all 0.15s; }
+    .dialogue-choice:hover { background: var(--neon-pink); color: #0a0a0f; }
+    .dialogue-choice.kind { border-color: var(--neon-blue); color: var(--neon-blue); }
+    .dialogue-choice.kind:hover { background: var(--neon-blue); color: #0a0a0f; }
+    .dialogue-choice.strange { border-color: var(--neon-purple); color: var(--neon-purple); }
+    .dialogue-choice.strange:hover { background: var(--neon-purple); color: #0a0a0f; }
+    .dialogue-choice.serve { border-color: var(--neon-yellow); color: var(--neon-yellow); }
+    .dialogue-choice.serve:hover { background: var(--neon-yellow); color: #0a0a0f; }
+    .dialogue-choice.disabled { opacity: 0.4; cursor: not-allowed; }
+    .dialogue-choice.disabled:hover { background: transparent; color: inherit; }
+    .dialogue-choice::before { content: '▸ '; }
+    #dialogue-continue { position: absolute; bottom: 0.4rem; right: 0.7rem; color: var(--neon-yellow); font-size: 0.75rem; animation: blink 1s infinite; }
+    #mobile-controls { position: absolute; bottom: 1.5rem; left: 1.5rem; display: none; pointer-events: auto; z-index: 60; }
+    @media (max-width: 768px), (pointer: coarse) { #mobile-controls { display: block; } }
+    #joystick-base { width: 110px; height: 110px; border-radius: 50%; background: rgba(10,10,15,0.6); border: 3px solid var(--neon-pink); position: relative; box-shadow: 0 
+0 15px rgba(255,42,109,0.3); }
+    #joystick-knob { width: 45px; height: 45px; border-radius: 50%; background: radial-gradient(circle at 30% 30%, var(--neon-pink), #800040); border: 2px solid 
+rgba(255,255,255,0.2); position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); box-shadow: 0 4px 8px rgba(0,0,0,0.5); }
+    #action-btn { position: absolute; bottom: 1rem; right: 1rem; width: 55px; height: 55px; border-radius: 50%; background: rgba(10,10,15,0.7); border: 3px solid 
+var(--neon-yellow); color: var(--neon-yellow); font-family: 'VT323', monospace; font-size: 0.8rem; display: none; align-items: center; justify-content: center; 
+pointer-events: auto; cursor: pointer; z-index: 60; }
+    @media (max-width: 768px), (pointer: coarse) { #action-btn { display: flex; } }
+    #action-btn:active { background: var(--neon-yellow); color: #0a0a0f; }
+    #audio-btn { position: absolute; top: 2.8rem; right: 0.5rem; background: rgba(10,10,15,0.85); border: 2px solid var(--neon-blue); color: var(--neon-blue); width: 26px; 
+height: 26px; font-size: 0.9rem; cursor: pointer; pointer-events: auto; display: flex; align-items: center; justify-content: center; }
+    #audio-btn.muted { border-color: var(--neon-pink); color: var(--neon-pink); }
+    #notification { position: absolute; top: 40%; left: 50%; transform: translate(-50%, -50%); background: rgba(10,10,15,0.97); border: 3px solid var(--neon-blue); padding: 
+0.7rem 1.5rem; font-size: 1.1rem; color: var(--neon-blue); opacity: 0; transition: opacity 0.3s; pointer-events: none; z-index: 70; text-align: center; max-width: 300px; }
+    #notification.visible { opacity: 1; }
+    #notification.bad { border-color: var(--neon-pink); color: var(--neon-pink); }
+    #notification.quest { border-color: var(--neon-yellow); color: var(--neon-yellow); }
+    #notification.item { border-color: var(--neon-purple); color: var(--neon-purple); }
+  </style>
+</head>
+<body>
+  <div id="game-container">
+    <div id="title-screen">
+      <div class="title-art">LAST_STOP</div>
+      <div class="title-sub">DINER</div>
+      <div class="title-tagline">"The neon flickers. The coffee's always fresh. They come from everywhere—and nowhere. Serve them well. Listen to their stories. Some are 
+looking for a meal. Others... are looking for something they lost a long time ago."</div>
+      <button class="start-btn" id="start-btn">CLOCK IN</button>
+      <div class="title-controls"><kbd>WASD</kbd> Move &nbsp;•&nbsp; <kbd>E</kbd> Interact &nbsp;•&nbsp; <kbd>1-5</kbd> Items</div>
+      <div class="title-credits">A liminal RPG // 2024</div>
+    </div>
+    <div id="game-world">
+      <canvas id="game-canvas"></canvas>
+      <div id="ui-overlay">
+        <div id="location-bar">COUNTER</div>
+        <div id="time-panel"><span id="shift-label">SHIFT</span><span id="shift-time">11:00 PM</span></div>
+        <div id="quest-tracker"><div class="quest-title">☆ Talk to travelers...</div><div class="quest-obj">Someone will come through soon.</div></div>
+        <button id="audio-btn">♪</button>
+        <div id="stats-panel">
+          <div class="stat-row"><span class="stat-label">TIPS</span><span class="stat-value" id="stat-tips">$0</span></div>
+          <div class="stat-row"><span class="stat-label">SANITY</span><span class="stat-value" id="stat-sanity">100</span></div>
+          <div class="stat-bar"><div class="stat-bar-fill sanity" id="sanity-bar" style="width:100%"></div></div>
+          <div class="stat-row"><span class="stat-label">SERVED</span><span class="stat-value" id="stat-served">0</span></div>
+        </div>
+        <div id="inventory-bar"></div>
+        <div id="interact-prompt">[E] Interact</div>
+        <div id="dialogue-box">
+          <div id="dialogue-portrait">?</div>
+          <div id="dialogue-header"><span id="dialogue-speaker">???</span></div>
+          <div id="dialogue-text"></div>
+          <div id="dialogue-choices"></div>
+          <div id="dialogue-continue">[SPACE/TAP]</div>
+        </div>
+        <div id="mobile-controls"><div id="joystick-base"><div id="joystick-knob"></div></div></div>
+        <button id="action-btn">ACT</button>
+        <div id="notification"></div>
+      </div>
+    </div>
+  </div>
+  <div class="crt-overlay"></div>
+  <div class="vignette"></div>
+
+<script>
+// ============== AUDIO SYSTEM ==============
+const Audio = {
+  ctx: null, masterGain: null, musicGain: null, sfxGain: null,
+  muted: false, initialized: false, musicInterval: null, beat: 0, bpm: 70,
+  bassPattern: [0, 0, 5, 5, 3, 3, 7, 5],
+  chordProg: [[0, 3, 7, 10], [5, 8, 0, 3], [10, 2, 5, 8], [7, 10, 2, 5]],
+  scale: [130.81, 146.83, 155.56, 174.61, 196.00, 207.65, 233.08, 261.63],
+  
+  init() {
+    if (this.initialized) return;
+    try {
+      this.ctx = new (window.AudioContext || window.webkitAudioContext)();
+      this.masterGain = this.ctx.createGain();
+      this.masterGain.gain.value = 0.4;
+      this.masterGain.connect(this.ctx.destination);
+      this.musicGain = this.ctx.createGain();
+      this.musicGain.gain.value = 0.25;
+      this.musicGain.connect(this.masterGain);
+      this.sfxGain = this.ctx.createGain();
+      this.sfxGain.gain.value = 0.5;
+      this.sfxGain.connect(this.masterGain);
+      this.initialized = true;
+    } catch(e) { console.log('Audio init failed'); }
+  },
+  
+  resume() { if (this.ctx?.state === 'suspended') this.ctx.resume(); },
+  
+  toggleMute() {
+    this.muted = !this.muted;
+    if (this.masterGain) this.masterGain.gain.value = this.muted ? 0 : 0.4;
+    return this.muted;
+  },
+  
+  startMusic() {
+    if (!this.initialized || this.musicInterval) return;
+    const beatTime = 60000 / this.bpm / 2;
+    this.beat = 0;
+    this.playBeat();
+    this.musicInterval = setInterval(() => this.playBeat(), beatTime);
+  },
+  
+  playBeat() {
+    if (!this.ctx || this.muted) { this.beat++; return; }
+    const now = this.ctx.currentTime;
+    const beatInBar = this.beat % 16;
+    const bar = Math.floor(this.beat / 16) % 4;
+    
+    if (beatInBar === 0 || beatInBar === 10) this.playKick(now);
+    if (beatInBar === 4 || beatInBar === 12) this.playSnare(now);
+    if (beatInBar % 2 === 0) this.playHat(now, beatInBar % 4 !== 0);
+    if (beatInBar % 4 === 0) this.playBass(now, this.scale[this.bassPattern[beatInBar / 2]] * 0.25);
+    if (beatInBar === 0 && Math.random() > 0.3) this.playPad(now, this.chordProg[bar]);
+    if (Math.random() > 0.94) this.playBell(now, this.scale[Math.floor(Math.random() * this.scale.length)] * 2);
+    this.beat++;
+  },
+  
+  playKick(time) {
+    const osc = this.ctx.createOscillator(), gain = this.ctx.createGain();
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(80, time);
+    osc.frequency.exponentialRampToValueAtTime(30, time + 0.15);
+    gain.gain.setValueAtTime(0.5, time);
+    gain.gain.exponentialRampToValueAtTime(0.01, time + 0.2);
+    osc.connect(gain); gain.connect(this.musicGain);
+    osc.start(time); osc.stop(time + 0.2);
+  },
+  
+  playSnare(time) {
+    const bufferSize = this.ctx.sampleRate * 0.12;
+    const buffer = this.ctx.createBuffer(1, bufferSize, this.ctx.sampleRate);
+    const data = buffer.getChannelData(0);
+    for (let i = 0; i < bufferSize; i++) data[i] = Math.random() * 2 - 1;
+    const noise = this.ctx.createBufferSource(); noise.buffer = buffer;
+    const gain = this.ctx.createGain();
+    const filter = this.ctx.createBiquadFilter();
+    filter.type = 'bandpass'; filter.frequency.value = 3000; filter.Q.value = 0.5;
+    gain.gain.setValueAtTime(0.15, time);
+    gain.gain.exponentialRampToValueAtTime(0.01, time + 0.12);
+    noise.connect(filter); filter.connect(gain); gain.connect(this.musicGain);
+    noise.start(time); noise.stop(time + 0.12);
+  },
+  
+  playHat(time, soft) {
+    const bufferSize = this.ctx.sampleRate * 0.04;
+    const buffer = this.ctx.createBuffer(1, bufferSize, this.ctx.sampleRate);
+    const data = buffer.getChannelData(0);
+    for (let i = 0; i < bufferSize; i++) data[i] = Math.random() * 2 - 1;
+    const noise = this.ctx.createBufferSource(); noise.buffer = buffer;
+    const gain = this.ctx.createGain();
+    const filter = this.ctx.createBiquadFilter();
+    filter.type = 'highpass'; filter.frequency.value = 8000;
+    gain.gain.setValueAtTime(soft ? 0.03 : 0.06, time);
+    gain.gain.exponentialRampToValueAtTime(0.001, time + 0.03);
+    noise.connect(filter); filter.connect(gain); gain.connect(this.musicGain);
+    noise.start(time); noise.stop(time + 0.04);
+  },
+  
+  playBass(time, freq) {
+    const osc = this.ctx.createOscillator(), gain = this.ctx.createGain();
+    const filter = this.ctx.createBiquadFilter();
+    osc.type = 'triangle'; osc.frequency.value = freq;
+    filter.type = 'lowpass'; filter.frequency.value = 300;
+    gain.gain.setValueAtTime(0.4, time);
+    gain.gain.exponentialRampToValueAtTime(0.01, time + 0.4);
+    osc.connect(filter); filter.connect(gain); gain.connect(this.musicGain);
+    osc.start(time); osc.stop(time + 0.4);
+  },
+  
+  playPad(time, chord) {
+    chord.forEach((semitone, i) => {
+      const freq = 130.81 * Math.pow(2, semitone / 12) * 0.5;
+      const osc = this.ctx.createOscillator(), gain = this.ctx.createGain();
+      const filter = this.ctx.createBiquadFilter();
+      osc.type = 'sine'; osc.frequency.value = freq;
+      filter.type = 'lowpass'; filter.frequency.value = 400;
+      gain.gain.setValueAtTime(0, time);
+      gain.gain.linearRampToValueAtTime(0.04, time + 0.3);
+      gain.gain.setValueAtTime(0.04, time + 1.5);
+      gain.gain.exponentialRampToValueAtTime(0.001, time + 2.5);
+      osc.connect(filter); filter.connect(gain); gain.connect(this.musicGain);
+      osc.start(time + i * 0.05); osc.stop(time + 2.5);
+    });
+  },
+  
+  playBell(time, freq) {
+    const osc = this.ctx.createOscillator(), gain = this.ctx.createGain();
+    osc.type = 'sine'; osc.frequency.value = freq;
+    gain.gain.setValueAtTime(0.08, time);
+    gain.gain.exponentialRampToValueAtTime(0.001, time + 1.5);
+    osc.connect(gain); gain.connect(this.musicGain);
+    osc.start(time); osc.stop(time + 1.5);
+  },
+  
+  playStep() {
+    if (!this.ctx || this.muted) return;
+    const osc = this.ctx.createOscillator(), gain = this.ctx.createGain();
+    const now = this.ctx.currentTime;
+    osc.type = 'square'; osc.frequency.value = 40 + Math.random() * 20;
+    gain.gain.setValueAtTime(0.04, now);
+    gain.gain.exponentialRampToValueAtTime(0.001, now + 0.025);
+    osc.connect(gain); gain.connect(this.sfxGain);
+    osc.start(now); osc.stop(now + 0.025);
+  },
+  
+  playBlip() {
+    if (!this.ctx || this.muted) return;
+    const osc = this.ctx.createOscillator(), gain = this.ctx.createGain();
+    const now = this.ctx.currentTime;
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(880, now);
+    osc.frequency.exponentialRampToValueAtTime(440, now + 0.06);
+    gain.gain.setValueAtTime(0.1, now);
+    gain.gain.exponentialRampToValueAtTime(0.001, now + 0.06);
+    osc.connect(gain); gain.connect(this.sfxGain);
+    osc.start(now); osc.stop(now + 0.06);
+  },
+  
+  playGood() {
+    if (!this.ctx || this.muted) return;
+    const now = this.ctx.currentTime;
+    [523, 659, 784].forEach((f, i) => {
+      const osc = this.ctx.createOscillator(), gain = this.ctx.createGain();
+      osc.type = 'sine'; osc.frequency.value = f;
+      gain.gain.setValueAtTime(0, now + i * 0.08);
+      gain.gain.linearRampToValueAtTime(0.1, now + i * 0.08 + 0.02);
+      gain.gain.exponentialRampToValueAtTime(0.001, now + i * 0.08 + 0.15);
+      osc.connect(gain); gain.connect(this.sfxGain);
+      osc.start(now + i * 0.08); osc.stop(now + i * 0.08 + 0.15);
+    });
+  },
+  
+  playBad() {
+    if (!this.ctx || this.muted) return;
+    const now = this.ctx.currentTime;
+    [180, 150].forEach((f, i) => {
+      const osc = this.ctx.createOscillator(), gain = this.ctx.createGain();
+      osc.type = 'sawtooth'; osc.frequency.value = f;
+      gain.gain.setValueAtTime(0.08, now + i * 0.15);
+      gain.gain.exponentialRampToValueAtTime(0.001, now + i * 0.15 + 0.2);
+      osc.connect(gain); gain.connect(this.sfxGain);
+      osc.start(now + i * 0.15); osc.stop(now + i * 0.15 + 0.2);
+    });
+  },
+  
+  playDoor() {
+    if (!this.ctx || this.muted) return;
+    const osc = this.ctx.createOscillator(), gain = this.ctx.createGain();
+    const now = this.ctx.currentTime;
+    osc.type = 'triangle';
+    osc.frequency.setValueAtTime(200, now);
+    osc.frequency.exponentialRampToValueAtTime(80, now + 0.15);
+    gain.gain.setValueAtTime(0.12, now);
+    gain.gain.exponentialRampToValueAtTime(0.001, now + 0.15);
+    osc.connect(gain); gain.connect(this.sfxGain);
+    osc.start(now); osc.stop(now + 0.15);
+  },
+  
+  playTalk(pitch = 1) {
+    if (!this.ctx || this.muted) return;
+    const now = this.ctx.currentTime;
+    const baseFreq = 120 + Math.random() * 80;
+    const osc = this.ctx.createOscillator(), gain = this.ctx.createGain();
+    osc.type = 'square';
+    osc.frequency.setValueAtTime(baseFreq * pitch, now);
+    osc.frequency.setValueAtTime(baseFreq * pitch * 0.9, now + 0.02);
+    gain.gain.setValueAtTime(0.06, now);
+    gain.gain.exponentialRampToValueAtTime(0.001, now + 0.05);
+    osc.connect(gain); gain.connect(this.sfxGain);
+    osc.start(now); osc.stop(now + 0.05);
+  },
+  
+  playServe() {
+    if (!this.ctx || this.muted) return;
+    const now = this.ctx.currentTime;
+    const osc = this.ctx.createOscillator(), gain = this.ctx.createGain();
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(600, now);
+    osc.frequency.setValueAtTime(900, now + 0.08);
+    gain.gain.setValueAtTime(0.12, now);
+    gain.gain.exponentialRampToValueAtTime(0.001, now + 0.15);
+    osc.connect(gain); gain.connect(this.sfxGain);
+    osc.start(now); osc.stop(now + 0.15);
+  },
+  
+  playStatic() {
+    if (!this.ctx || this.muted) return;
+    const bufferSize = this.ctx.sampleRate * 0.3;
+    const buffer = this.ctx.createBuffer(1, bufferSize, this.ctx.sampleRate);
+    const data = buffer.getChannelData(0);
+    for (let i = 0; i < bufferSize; i++) data[i] = (Math.random() * 2 - 1) * 0.3;
+    const noise = this.ctx.createBufferSource(); noise.buffer = buffer;
+    const gain = this.ctx.createGain();
+    const filter = this.ctx.createBiquadFilter();
+    filter.type = 'bandpass'; filter.frequency.value = 2000;
+    gain.gain.setValueAtTime(0.12, this.ctx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.001, this.ctx.currentTime + 0.3);
+    noise.connect(filter); filter.connect(gain); gain.connect(this.sfxGain);
+    noise.start();
+  },
+  
+  playQuest() {
+    if (!this.ctx || this.muted) return;
+    const now = this.ctx.currentTime;
+    [440, 550, 660, 880].forEach((f, i) => {
+      const osc = this.ctx.createOscillator(), gain = this.ctx.createGain();
+      osc.type = 'sine'; osc.frequency.value = f;
+      gain.gain.setValueAtTime(0, now + i * 0.1);
+      gain.gain.linearRampToValueAtTime(0.08, now + i * 0.1 + 0.03);
+      gain.gain.exponentialRampToValueAtTime(0.001, now + i * 0.1 + 0.2);
+      osc.connect(gain); gain.connect(this.sfxGain);
+      osc.start(now + i * 0.1); osc.stop(now + i * 0.1 + 0.2);
+    });
+  }
+};
+
+// ============== COLORS ==============
+const PAL = {
+  floor1: '#1a1412', floor2: '#15100e', tile1: '#252020', tile2: '#201a1a',
+  counter: '#3a2820', counterTop: '#5a4030', booth: '#4a2020', boothSeat: '#6a3030',
+  neonPink: '#ff2a6d', neonBlue: '#05d9e8', neonYellow: '#f9f002', neonPurple: '#d300c5',
+  metal: '#4a4a5a', metalDark: '#2a2a3a', chrome: '#8a8a9a',
+  window: '#0a1520', windowFrame: '#3a3a4a',
+};
+
+// ============== GAME ==============
+const Game = {
+  canvas: null, ctx: null, width: 0, height: 0, scale: 2, running: false, paused: false, time: 0,
+  worldW: 500, worldH: 350, camX: 0, camY: 0, shiftTime: 23 * 60,
+  player: { x: 250, y: 200, speed: 1.8, dir: 'down', frame: 0, frameTimer: 0, moving: false, stepTimer: 0 },
+  stats: { tips: 0, sanity: 100, served: 0 },
+  inventory: [
+    { id: 'coffee', name: 'Coffee', icon: '☕', count: 10, desc: 'Hot and black.' },
+    { id: 'pie', name: 'Pie', icon: '🥧', count: 5, desc: 'Cherry pie.' },
+    { id: 'burger', name: 'Burger', icon: '🍔', count: 3, desc: 'Greasy goodness.' },
+    { id: 'water', name: 'Water', icon: '💧', count: 10, desc: 'Cold and clear.' },
+    { id: 'whiskey', name: 'Whiskey', icon: '🥃', count: 2, desc: 'For long nights.' },
+  ],
+  specialItems: [],
+  selectedSlot: 0,
+  keys: {},
+  currentInteraction: null,
+  dialogueActive: false,
+  currentDialogue: null,
+  typewriterIndex: 0,
+  typewriterText: '',
+  typewriterPitch: 1,
+  npcs: [],
+  npcMemory: {},
+  quests: {},
+  questQueue: ['earl'],
+  door: { x: 235, y: 20, w: 30, h: 15, open: false, timer: 0 },
+  spawnTimer: 180,
+
+  questData: {
+    locket: { title: "THE ROAD WOMAN'S LOCKET", desc: "Earl gave you a mysterious locket.", obj: "Wait for someone who recognizes it" },
+    maya: { title: "MAYA'S FINAL REST", desc: "Help the ghost girl find peace.", obj: "Search the storage room" },
+    static: { title: "THE VOICE IN THE STATIC", desc: "Something in the radio...", obj: "Keep listening" }
+  },
+
+  npcTemplates: {
+    earl: {
+      id: 'earl', name: 'EARL', portrait: '🚛', pitch: 0.7,
+      skin: '#c5a090', shirt: '#445566', hair: '#333',
+      getDialogue(mem, quests, items) {
+        if (!mem.visited) return {
+          start: [
+            { text: "*slides onto stool, exhausted* Long haul. Been driving since... I don't remember." },
+            { text: "Coffee. Black. Strong enough to wake the dead.", choices: [
+              { text: "[Serve Coffee ☕]", id: 'serve_coffee', type: 'serve', need: 'coffee' },
+              { text: "[Serve Whiskey 🥃]", id: 'serve_whiskey', type: 'serve', need: 'whiskey' },
+              { text: "You look like you've seen something.", id: 'ask_seen', type: 'strange' },
+              { text: "Kitchen's closing.", id: 'dismiss', type: 'bad' }
+            ]}
+          ],
+          serve_coffee: [
+            { text: "*takes long sip* Perfect. You know how to pour.", effect: { tips: 8, served: 1 } },
+            { text: "Thirty years on the road. Tonight's route wasn't on any map.", choices: [
+              { text: "GPS can be wrong.", id: 'rational', type: 'kind' },
+              { text: "What did you see?", id: 'ask_road', type: 'strange' }
+            ]}
+          ],
+          serve_whiskey: [
+            { text: "*surprised, then grins* Now THAT'S hospitality.", effect: { tips: 12, served: 1 } },
+            { text: "Alright friend, you earned a story. Something happened tonight.", choices: [
+              { text: "I'm listening.", id: 'story', type: 'kind' }
+            ]}
+          ],
+          ask_seen: [
+            { text: "*long pause* The truth? Last fifty miles, my headlights caught something.", effect: { sanity: -5 } },
+            { text: "A woman. Standing in the road. No shadow.", choices: [
+              { text: "Here, coffee first. [☕]", id: 'serve_coffee', type: 'serve', need: 'coffee' },
+              { text: "Did she speak?", id: 'woman_spoke', type: 'strange' }
+            ]}
+          ],
+          dismiss: [
+            { text: "*scowls* Fine. Guess I'll take my money elsewhere.", effect: { tips: -5 } },
+            { text: "*walks out*", effect: { memory: { visited: true, angry: true } }, leave: true }
+          ],
+          rational: [
+            { text: "*nods slowly* Maybe. But she dropped something.", choices: [
+              { text: "What did she drop?", id: 'locket_intro', type: 'strange' }
+            ]}
+          ],
+          ask_road: [
+            { text: "Mile marker 333. Woman in the road. No shadow.", effect: { sanity: -8 } },
+            { text: "She waved. Like she KNEW me.", choices: [
+              { text: "What happened next?", id: 'locket_intro', type: 'strange' }
+            ]}
+          ],
+          story: [
+            { text: "Mile marker 333. A woman with no shadow. She dropped this.", effect: { sanity: -5 } },
+            { text: "*pulls out tarnished locket*", choices: [
+              { text: "Open it.", id: 'locket_open', type: 'strange' }
+            ]}
+          ],
+          woman_spoke: [
+            { text: "*voice drops* She said: 'Tell them at the last stop. I'm waiting.'", effect: { sanity: -10 } },
+            { text: "Then she vanished. Left this behind.", choices: [
+              { text: "What is it?", id: 'locket_intro', type: 'strange' }
+            ]}
+          ],
+          locket_intro: [
+            { text: "*reaches into pocket, pulls out tarnished locket*" },
+            { text: "Open it. *slides it across*", choices: [
+              { text: "*open the locket*", id: 'locket_open', type: 'strange' }
+            ]}
+          ],
+          locket_open: [
+            { text: "*Inside: a photo of Earl, but 20 years younger*", effect: { sanity: -10 } },
+            { text: "That's ME. But I never owned this. Never took that photo.", choices: [
+              { text: "This is impossible.", id: 'impossible', type: 'kind' },
+              { text: "I'll keep it. Find answers.", id: 'take_locket', type: 'strange' }
+            ]}
+          ],
+          impossible: [
+            { text: "*bitter laugh* I KNOW. Twenty years ago I was in a bad crash.", effect: { sanity: -5 } },
+            { text: "Flatlined for two minutes. Saw a road with no end.", choices: [
+              { text: "Give me the locket. I'll find out.", id: 'take_locket', type: 'kind' }
+            ]}
+          ],
+          take_locket: [
+            { text: "*relief washes over his face* Thank you. I can't carry it anymore.", effect: { tips: 15, item: 'locket', quest: 'locket' } },
+            { text: "*slides locket over* Find out who she is. I'll come back.", effect: { memory: { visited: true, gaveLocket: true } } },
+            { text: "*leaves money on counter, walks out*", leave: true }
+          ]
+        };
+        // Return visits
+        if (mem.angry) return {
+          start: [
+            { text: "*hesitates at door* Look, I was rude last time.", choices: [
+              { text: "It's forgotten. Coffee?", id: 'forgive', type: 'kind' }
+            ]}
+          ],
+          forgive: [
+            { text: "*sits down, relieved* Thanks, friend.", choices: [
+              { text: "[Serve Coffee ☕]", id: 'serve_return', type: 'serve', need: 'coffee' }
+            ]}
+          ],
+          serve_return: [
+            { text: "*drinks gratefully*", effect: { tips: 10, served: 1, memory: { angry: false } } },
+            { text: "I saw her again. The woman. She said 'Ask about Maya.'", choices: [
+              { text: "Maya? I might know her.", id: 'maya_hint', type: 'strange' }
+            ]}
+          ],
+          maya_hint: [
+            { text: "*nods slowly* Good. I think she's connected to all of this.", effect: { memory: { toldMaya: true } } },
+            { text: "*finishes coffee* Stay safe, friend. *walks out*", leave: true }
+          ]
+        };
+        if (mem.gaveLocket) return {
+          start: [
+            { text: "*walks in hopeful* Any news about the locket?", choices: [
+              { text: "Still investigating.", id: 'wait', type: 'kind' },
+              { text: "I found Maya. A ghost.", id: 'found_maya', type: 'strange', condition: () => Game.npcMemory.maya?.visited }
+            ]}
+          ],
+          wait: [
+            { text: "*nods* I understand. Coffee while I wait?", choices: [
+              { text: "[Serve Coffee ☕]", id: 'wait_serve', type: 'serve', need: 'coffee' }
+            ]}
+          ],
+          wait_serve: [
+            { text: "*sips quietly* This place feels like a crossroads.", effect: { tips: 10, served: 1 } },
+            { text: "Keep the lights on. *leaves*", leave: true }
+          ],
+          found_maya: [
+            { text: "*eyes widen* Maya? You found her?", effect: { sanity: -5 } },
+            { text: "The woman on the road... she was leading me here all along.", choices: [
+              { text: "They're connected.", id: 'connection', type: 'strange' }
+            ]}
+          ],
+          connection: [
+            { text: "*sits heavily* All those years driving. I was being guided.", effect: { tips: 30, memory: { complete: true } } },
+            { text: "Thank you. For everything. *presses cash into your hand, walks out*", leave: true }
+          ]
+        };
+        return {
+          start: [
+            { text: "*waves* Same as usual, friend!", choices: [
+              { text: "[Coffee ☕]", id: 'quick', type: 'serve', need: 'coffee' }
+            ]}
+          ],
+          quick: [{ text: "*takes it* Lifesaver. *tips, leaves*", effect: { tips: 8, served: 1 }, leave: true }]
+        };
+      }
+    },
+    
+    maya: {
+      id: 'maya', name: 'MAYA', portrait: '👻', pitch: 1.4,
+      skin: '#d0d0e0', shirt: '#446688', hair: '#1a1a2a',
+      getDialogue(mem, quests, items) {
+        const hasLocket = items.includes('locket');
+        const hasNews = items.includes('newspaper');
+        
+        if (!mem.visited) return {
+          start: [
+            { text: "*sitting in corner booth, doesn't look up* ...You can see me.", effect: { sanity: -8 } },
+            { text: "Most people can't. Not anymore.", choices: [
+              { text: "Are you okay?", id: 'kind_intro', type: 'kind' },
+              { text: "What do you mean, 'see you'?", id: 'ask_visible', type: 'strange' },
+              { text: "*back away slowly*", id: 'retreat', type: 'bad' }
+            ]}
+          ],
+          kind_intro: [
+            { text: "*small, sad smile* Kind. That's rare here.", effect: { sanity: 3 } },
+            { text: "I've been waiting. A very long time. I forgot what for.", choices: [
+              { text: "Maybe pie will help? [🥧]", id: 'serve_pie', type: 'serve', need: 'pie' },
+              { text: "How long have you been here?", id: 'ask_time', type: 'strange' }
+            ]}
+          ],
+          ask_visible: [
+            { text: "*looks at her hands - they flicker* I had an accident. I think.", effect: { sanity: -10 } },
+            { text: "I came here after. The lights were on. I never left.", choices: [
+              { text: "You're a ghost.", id: 'blunt', type: 'strange' },
+              { text: "This diner keeps people like you.", id: 'acknowledge', type: 'kind' }
+            ]}
+          ],
+          retreat: [
+            { text: "*voice echoes* Please don't go. It's so quiet...", effect: { sanity: -15, memory: { visited: true, abandoned: true } } },
+            { text: "*her form wavers, fades*", leave: true }
+          ],
+          serve_pie: [
+            { text: "*takes plate, hands trembling* Grandmother made pie like this.", effect: { served: 1, sanity: 5 } },
+            { text: "*tears forming* I was driving to see her. The night I...", choices: [
+              { text: "Take your time.", id: 'patience', type: 'kind' }
+            ]}
+          ],
+          ask_time: [
+            { text: "*points at wall* The clock. For me, it's always 3:33 AM.", effect: { sanity: -10 } },
+            { text: "The moment it happened. Frozen. Like me.", choices: [
+              { text: "What happened at 3:33?", id: 'the_moment', type: 'strange' }
+            ]}
+          ],
+          blunt: [
+            { text: "*laughs hollowly* Ghost. Living. Dead. Just words.", effect: { sanity: -5 } },
+            { text: "I'm Maya. Or I was.", choices: [
+              { text: "I can try to help.", id: 'offer_help', type: 'kind' }
+            ]}
+          ],
+          acknowledge: [
+            { text: "*brightens* You understand. This place is... between.", effect: { sanity: -5, memory: { visited: true, friendly: true } } },
+            { text: "I'll be here. In the corner. *fades to booth*", leave: true }
+          ],
+          patience: [
+            { text: "*composes herself* The car spun. Lights. Cold. Then this diner.", effect: { sanity: -5 } },
+            { text: "I need to know what happened. There's a newspaper...", choices: [
+              { text: "Where would I find it?", id: 'quest', type: 'kind' }
+            ]}
+          ],
+          the_moment: [
+            { text: "3:33 AM. Headlights. Metal. Nothing.", effect: { sanity: -12 } },
+            { text: "I need to remember. There might be records...", choices: [
+              { text: "I'll search for them.", id: 'quest', type: 'kind' }
+            ]}
+          ],
+          offer_help: [
+            { text: "*hope in her eyes* You would? For me?", effect: { sanity: -3 } },
+            { text: "There's a newspaper. The night of the accident. Find it?", choices: [
+              { text: "I'll search the diner.", id: 'quest', type: 'kind' }
+            ]}
+          ],
+          quest: [
+            { text: "*reaches out - hand passes through yours, cold* Thank you.", effect: { quest: 'maya', memory: { visited: true, questGiven: true } } },
+            { text: "Storage room. Under the floor. Please. *fades to booth*", leave: true }
+          ]
+        };
+        
+        // Has newspaper
+        if (hasNews && mem.questGiven) return {
+          start: [
+            { text: "*looks up, hopeful* Did you find it?", choices: [
+              { text: "*show newspaper*", id: 'show', type: 'kind' }
+            ]}
+          ],
+          show: [
+            { text: "*reads slowly* 'Maya Chen, 23... highway collision...'", effect: { sanity: -10 } },
+            { text: "*tears stream* Twenty-three. I was twenty-three.", choices: [
+              { text: "You can rest now, Maya.", id: 'release', type: 'kind' }
+            ]}
+          ],
+          release: [
+            { text: "*light fills the booth* I can see her. Grandmother...", effect: { sanity: 15, questComplete: 'maya', memory: { gone: true } } },
+            { text: "Thank you. For seeing me. *fades into light*", leave: true }
+          ]
+        };
+        
+        // Has locket
+        if (hasLocket && !mem.sawLocket) return {
+          start: [
+            { text: "*notices something* That locket... I KNOW that locket.", effect: { sanity: -8 } },
+            { text: "*reaches for it* It was grandmother's.", choices: [
+              { text: "A trucker found it.", id: 'trucker', type: 'kind' }
+            ]}
+          ],
+          trucker: [
+            { text: "*flickering* Earl. His name was Earl.", effect: { sanity: -15, memory: { sawLocket: true } } },
+            { text: "We died together. But he came back. I didn't.", choices: [
+              { text: "I'll help you both.", id: 'both', type: 'kind' }
+            ]}
+          ],
+          both: [
+            { text: "*hope* Find the newspaper. Storage room floor.", effect: { memory: { questGiven: true }, quest: 'maya' } },
+            { text: "Please. *fades*", leave: true }
+          ]
+        };
+        
+        // Return
+        if (mem.questGiven) return {
+          start: [
+            { text: "*looks up from booth* Any luck?", choices: [
+              { text: "Still looking.", id: 'wait', type: 'kind' }
+            ]}
+          ],
+          wait: [
+            { text: "*smiles faintly* I know you will.", effect: { sanity: 3 } },
+            { text: "*fades back*", leave: true }
+          ]
+        };
+        
+        return {
+          start: [
+            { text: "*nods from booth* Thank you for seeing me.", choices: [
+              { text: "Always.", id: 'ack', type: 'kind' }
+            ]}
+          ],
+          ack: [{ text: "*fades peacefully*", effect: { sanity: 3 }, leave: true }]
+        };
+      }
+    },
+    
+    sal: {
+      id: 'sal', name: 'SAL', portrait: '👵', pitch: 1.1,
+      skin: '#e5c0b0', shirt: '#884466', hair: '#aaa',
+      getDialogue(mem, quests, items) {
+        if (!mem.visited) return {
+          start: [
+            { text: "*settles into booth* The usual, dear." },
+            { text: "Oh! You're new. Coffee and pie, please.", choices: [
+              { text: "[Coffee ☕]", id: 'coffee', type: 'serve', need: 'coffee' },
+              { text: "[Pie 🥧]", id: 'pie', type: 'serve', need: 'pie' },
+              { text: "You come here often?", id: 'often', type: 'kind' }
+            ]}
+          ],
+          coffee: [
+            { text: "*wraps hands around mug* Perfect.", effect: { tips: 8, served: 1 } },
+            { text: "Been coming forty years. Since Harold...", choices: [
+              { text: "Harold?", id: 'harold', type: 'kind' }
+            ]}
+          ],
+          pie: [
+            { text: "*eyes light up* Just like Eleanor made!", effect: { tips: 10, served: 1 } },
+            { text: "She ran this place, you know. Long time ago.", choices: [
+              { text: "I don't know any Eleanor.", id: 'eleanor', type: 'strange' }
+            ]}
+          ],
+          often: [
+            { text: "*laughs* Every Thursday since '83!", effect: { sanity: -3 } },
+            { text: "Never miss it. Rain or shine.", choices: [
+              { text: "That's dedication.", id: 'dedication', type: 'kind' }
+            ]}
+          ],
+          harold: [
+            { text: "*eyes distant* Fifty-two years married. Then the truck...", effect: { sanity: -8 } },
+            { text: "I was in the car too. They said I was lucky.", choices: [
+              { text: "I'm sorry for your loss.", id: 'condolences', type: 'kind' }
+            ]}
+          ],
+          eleanor: [
+            { text: "*confused* You don't? But she was just... wasn't she?", effect: { sanity: -12 } },
+            { text: "*looks around uncertain*", choices: [
+              { text: "Enjoy your pie. It's okay.", id: 'comfort', type: 'kind' }
+            ]}
+          ],
+          dedication: [
+            { text: "*sad smile* This place never changes. That's the beauty.", effect: { sanity: -5, memory: { visited: true } } },
+            { text: "Same time next week. *settles in*", leave: true }
+          ],
+          condolences: [
+            { text: "*tearful* Thank you, dear. This place helped.", effect: { tips: 10, sanity: 3, memory: { visited: true } } },
+            { text: "See you Thursday. *smiles*", leave: true }
+          ],
+          comfort: [
+            { text: "*relaxes* Yes. The pie. So good.", effect: { tips: 12, sanity: 5, memory: { visited: true } } },
+            { text: "Thank you, dear. *tips generously*", leave: true }
+          ]
+        };
+        return {
+          start: [
+            { text: "*waves* The usual!", choices: [
+              { text: "[Coffee & Pie]", id: 'usual', type: 'serve', need: 'coffee' }
+            ]}
+          ],
+          usual: [
+            { text: "*happy sigh* You always remember.", effect: { tips: 10, served: 1 } },
+            { text: "See you next Thursday. *settles in*", leave: true }
+          ]
+        };
+      }
+    }
+  },
+
+  colliders: [
+    { x: 0, y: 0, w: 235, h: 35 }, { x: 265, y: 0, w: 235, h: 35 },
+    { x: 0, y: 0, w: 10, h: 350 }, { x: 490, y: 0, w: 10, h: 350 }, { x: 0, y: 340, w: 500, h: 10 },
+    { x: 160, y: 80, w: 180, h: 25 },
+    { x: 20, y: 140, w: 55, h: 35 }, { x: 20, y: 230, w: 55, h: 35 },
+    { x: 425, y: 140, w: 55, h: 35 }, { x: 425, y: 230, w: 55, h: 35 },
+    { x: 380, y: 50, w: 30, h: 20 },
+  ],
+
+  zones: [
+    { id: 'entrance', name: 'ENTRANCE', x: 200, y: 20, w: 100, h: 50 },
+    { id: 'counter', name: 'COUNTER', x: 160, y: 75, w: 180, h: 60 },
+    { id: 'booth-l1', name: 'BOOTH #1', x: 10, y: 130, w: 80, h: 60 },
+    { id: 'booth-l2', name: 'BOOTH #2', x: 10, y: 220, w: 80, h: 60 },
+    { id: 'booth-r1', name: 'BOOTH #3', x: 410, y: 130, w: 80, h: 60 },
+    { id: 'booth-r2', name: 'BOOTH #4', x: 410, y: 220, w: 80, h: 60 },
+    { id: 'kitchen', name: 'KITCHEN', x: 160, y: 290, w: 180, h: 50 },
+    { id: 'storage', name: 'STORAGE', x: 350, y: 290, w: 140, h: 50 },
+    { id: 'radio', name: 'THE RADIO', x: 370, y: 45, w: 50, h: 35 },
+  ],
+
+  interactables: [
+    { id: 'radio', name: 'Old Radio', x: 395, y: 60, w: 20, h: 20 },
+    { id: 'coffeepot', name: 'Coffee Pot', x: 200, y: 90, w: 15, h: 15 },
+    { id: 'piecase', name: 'Pie Case', x: 355, y: 90, w: 20, h: 12 },
+    { id: 'register', name: 'Register', x: 320, y: 90, w: 15, h: 15 },
+    { id: 'storage', name: 'Storage Room', x: 400, y: 320, w: 40, h: 20 },
+  ],
+
+  init() {
+    this.canvas = document.getElementById('game-canvas');
+    this.ctx = this.canvas.getContext('2d');
+    this.resize();
+    window.addEventListener('resize', () => this.resize());
+    this.setupInput();
+    this.setupUI();
+    this.updateInventoryUI();
+  },
+
+  resize() {
+    const container = document.getElementById('game-world');
+    const rect = container.getBoundingClientRect();
+    if (rect.width === 0) return;
+    const scaleX = rect.width / this.worldW;
+    const scaleY = rect.height / this.worldH;
+    this.scale = Math.max(1, Math.floor(Math.min(scaleX, scaleY)));
+    this.width = Math.min(this.worldW, Math.floor(rect.width / this.scale));
+    this.height = Math.min(this.worldH, Math.floor(rect.height / this.scale));
+    this.canvas.width = this.width;
+    this.canvas.height = this.height;
+    this.canvas.style.width = this.width * this.scale + 'px';
+    this.canvas.style.height = this.height * this.scale + 'px';
+  },
+
+  setupInput() {
+    document.addEventListener('keydown', (e) => {
+      if (this.dialogueActive) {
+        if (['Space', 'Enter', 'KeyE'].includes(e.code)) { e.preventDefault(); this.advanceDialogue(); }
+        return;
+      }
+      this.keys[e.code] = true;
+      if (['Space', 'KeyE'].includes(e.code)) { e.preventDefault(); this.interact(); }
+      if (['Digit1','Digit2','Digit3','Digit4','Digit5'].includes(e.code)) {
+        this.selectedSlot = parseInt(e.code.slice(-1)) - 1;
+        this.updateInventoryUI();
+      }
+      if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.code)) e.preventDefault();
+    });
+    document.addEventListener('keyup', (e) => { this.keys[e.code] = false; });
+    
+    const joystickBase = document.getElementById('joystick-base');
+    const joystickKnob = document.getElementById('joystick-knob');
+    let joystickActive = false, joystickCenter = { x: 0, y: 0 };
+    
+    joystickBase.addEventListener('touchstart', (e) => {
+      e.preventDefault();
+      joystickActive = true;
+      const rect = joystickBase.getBoundingClientRect();
+      joystickCenter = { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 };
+    }, { passive: false });
+    
+    document.addEventListener('touchmove', (e) => {
+      if (!joystickActive) return;
+      e.preventDefault();
+      const touch = e.touches[0];
+      const dx = touch.clientX - joystickCenter.x;
+      const dy = touch.clientY - joystickCenter.y;
+      const dist = Math.min(Math.sqrt(dx * dx + dy * dy), 32);
+      const angle = Math.atan2(dy, dx);
+      joystickKnob.style.transform = `translate(calc(-50% + ${Math.cos(angle) * dist}px), calc(-50% + ${Math.sin(angle) * dist}px))`;
+      this.keys['ArrowUp'] = dy < -12;
+      this.keys['ArrowDown'] = dy > 12;
+      this.keys['ArrowLeft'] = dx < -12;
+      this.keys['ArrowRight'] = dx > 12;
+    }, { passive: false });
+    
+    const resetJoystick = () => {
+      joystickActive = false;
+      joystickKnob.style.transform = 'translate(-50%, -50%)';
+      this.keys['ArrowUp'] = this.keys['ArrowDown'] = this.keys['ArrowLeft'] = this.keys['ArrowRight'] = false;
+    };
+    document.addEventListener('touchend', resetJoystick);
+    document.addEventListener('touchcancel', resetJoystick);
+    document.getElementById('action-btn').addEventListener('click', () => {
+      if (this.dialogueActive) this.advanceDialogue();
+      else this.interact();
+    });
+  },
+
+  setupUI() {
+    document.getElementById('start-btn').addEventListener('click', () => {
+      Audio.init();
+      Audio.resume();
+      Audio.startMusic();
+      document.getElementById('title-screen').classList.add('hidden');
+      document.getElementById('game-world').classList.add('active');
+      setTimeout(() => { this.resize(); this.running = true; this.gameLoop(); }, 100);
+    });
+    
+    document.getElementById('audio-btn').addEventListener('click', () => {
+      const muted = Audio.toggleMute();
+      document.getElementById('audio-btn').classList.toggle('muted', muted);
+      document.getElementById('audio-btn').textContent = muted ? '🔇' : '♪';
+    });
+    
+    document.getElementById('dialogue-choices').addEventListener('click', (e) => {
+      if (e.target.classList.contains('dialogue-choice') && !e.target.classList.contains('disabled')) {
+        Audio.playBlip();
+        this.handleChoice(e.target.dataset.choice, e.target.dataset.need);
+      }
+    });
+    
+    document.getElementById('dialogue-box').addEventListener('click', (e) => {
+      if (!e.target.classList.contains('dialogue-choice') && this.dialogueActive) {
+        this.advanceDialogue();
+      }
+    });
+  },
+
+  updateInventoryUI() {
+    const bar = document.getElementById('inventory-bar');
+    bar.innerHTML = this.inventory.map((item, i) =>
+      `<div class="inv-slot ${i === this.selectedSlot ? 'selected' : ''}" data-slot="${i}" title="${item.desc}">
+        <span class="key">${i + 1}</span>${item.icon}<span class="count">${item.count}</span>
+      </div>`
+    ).join('');
+    bar.querySelectorAll('.inv-slot').forEach(slot => {
+      slot.addEventListener('click', () => {
+        this.selectedSlot = parseInt(slot.dataset.slot);
+        this.updateInventoryUI();
+        Audio.playBlip();
+      });
+    });
+  },
+
+  notify(msg, type = '') {
+    const el = document.getElementById('notification');
+    el.textContent = msg;
+    el.className = 'visible ' + type;
+    setTimeout(() => el.className = '', 3000);
+  },
+
+  addQuest(id) {
+    if (this.quests[id]) return;
+    this.quests[id] = { status: 'active' };
+    this.notify(`NEW QUEST: ${this.questData[id].title}`, 'quest');
+    Audio.playQuest();
+    this.updateQuestTracker();
+  },
+
+  completeQuest(id) {
+    if (!this.quests[id]) return;
+    this.quests[id].status = 'complete';
+    this.notify(`QUEST COMPLETE: ${this.questData[id].title}`, 'quest');
+    Audio.playGood();
+    this.updateQuestTracker();
+  },
+
+  updateQuestTracker() {
+    const tracker = document.getElementById('quest-tracker');
+    const active = Object.entries(this.quests).find(([k, v]) => v.status === 'active');
+    if (active) {
+      const [key] = active;
+      const data = this.questData[key];
+      tracker.querySelector('.quest-title').textContent = `☆ ${data.title}`;
+      tracker.querySelector('.quest-obj').textContent = data.obj;
+    } else {
+      tracker.querySelector('.quest-title').textContent = '☆ Talk to travelers...';
+      tracker.querySelector('.quest-obj').textContent = 'Someone will come through soon.';
+    }
+  },
+
+  gameLoop() {
+    if (!this.running) return;
+    this.time++;
+    if (!this.paused && !this.dialogueActive) this.update();
+    this.updateTypewriter();
+    this.render();
+    requestAnimationFrame(() => this.gameLoop());
+  },
+
+  update() {
+    this.updatePlayer();
+    this.updateNPCs();
+    this.updateDoor();
+    this.updateTime();
+    this.updateSpawns();
+    this.updateZone();
+    this.checkInteractions();
+    this.updateUI();
+  },
+
+  updatePlayer() {
+    const p = this.player;
+    let dx = 0, dy = 0;
+    if (this.keys['KeyW'] || this.keys['ArrowUp']) dy = -1;
+    if (this.keys['KeyS'] || this.keys['ArrowDown']) dy = 1;
+    if (this.keys['KeyA'] || this.keys['ArrowLeft']) dx = -1;
+    if (this.keys['KeyD'] || this.keys['ArrowRight']) dx = 1;
+    if (dx && dy) { dx *= 0.707; dy *= 0.707; }
+    dx *= p.speed; dy *= p.speed;
+    
+    const newX = p.x + dx, newY = p.y + dy;
+    let canMoveX = true, canMoveY = true;
+    for (const c of this.colliders) {
+      if (this.rectOverlap({ x: newX - 5, y: p.y - 3, w: 10, h: 6 }, c)) canMoveX = false;
+      if (this.rectOverlap({ x: p.x - 5, y: newY - 3, w: 10, h: 6 }, c)) canMoveY = false;
+    }
+    if (canMoveX) p.x = newX;
+    if (canMoveY) p.y = newY;
+    
+    p.moving = dx !== 0 || dy !== 0;
+    if (p.moving) {
+      p.frameTimer++;
+      if (p.frameTimer > 7) { p.frame = (p.frame + 1) % 4; p.frameTimer = 0; }
+      p.stepTimer++;
+      if (p.stepTimer > 16) { Audio.playStep(); p.stepTimer = 0; }
+      if (Math.abs(dx) > Math.abs(dy)) p.dir = dx > 0 ? 'right' : 'left';
+      else p.dir = dy > 0 ? 'down' : 'up';
+    } else {
+      p.frame = 0;
+      p.stepTimer = 0;
+    }
+    
+    this.camX = Math.max(0, Math.min(this.worldW - this.width, p.x - this.width / 2));
+    this.camY = Math.max(0, Math.min(this.worldH - this.height, p.y - this.height / 2));
+  },
+
+  updateNPCs() {
+    for (const npc of [...this.npcs]) {
+      if (npc.leaving) {
+        this.moveNPCToward(npc, 250, 30);
+        if (npc.y < 35) {
+          this.npcs.splice(this.npcs.indexOf(npc), 1);
+          Audio.playDoor();
+          this.door.open = true;
+          this.door.timer = 60;
+        }
+        continue;
+      }
+      
+      if (npc.state === 'entering') {
+        this.moveNPCToward(npc, npc.targetX, npc.targetY);
+        if (Math.hypot(npc.x - npc.targetX, npc.y - npc.targetY) < 3) {
+          npc.state = 'idle';
+          npc.dir = 'down';
+        }
+      }
+      
+      const moving = npc.state === 'entering' || npc.leaving;
+      if (moving) {
+        npc.frameTimer++;
+        if (npc.frameTimer > 9) { npc.frame = (npc.frame + 1) % 4; npc.frameTimer = 0; }
+      } else {
+        npc.frame = 0;
+      }
+    }
+  },
+
+  moveNPCToward(npc, tx, ty) {
+    const dx = tx - npc.x, dy = ty - npc.y, dist = Math.hypot(dx, dy);
+    if (dist < 1) return;
+    npc.x += (dx / dist) * 0.8;
+    npc.y += (dy / dist) * 0.8;
+    if (Math.abs(dx) > Math.abs(dy)) npc.dir = dx > 0 ? 'right' : 'left';
+    else npc.dir = dy > 0 ? 'down' : 'up';
+  },
+
+  updateDoor() {
+    if (this.door.timer > 0) {
+      this.door.timer--;
+      if (this.door.timer === 0) this.door.open = false;
+    }
+  },
+
+  updateTime() {
+    if (this.time % 120 === 0) {
+      this.shiftTime++;
+      if (this.shiftTime >= 24 * 60) this.shiftTime = 0;
+    }
+  },
+
+  updateSpawns() {
+    this.spawnTimer--;
+    if (this.spawnTimer <= 0 && this.questQueue.length > 0 && this.npcs.length < 4) {
+      const nextNpcId = this.questQueue.shift();
+      const template = this.npcTemplates[nextNpcId];
+      if (template && !this.npcs.find(n => n.id === nextNpcId)) {
+        this.spawnNPC(template);
+      }
+      this.spawnTimer = 600 + Math.random() * 600;
+    }
+    
+    if (this.questQueue.length < 2 && this.time % 300 === 0) {
+      const available = Object.keys(this.npcTemplates).filter(id =>
+        !this.questQueue.includes(id) && !this.npcs.find(n => n.id === id)
+      );
+      if (available.length > 0) {
+        this.questQueue.push(available[Math.floor(Math.random() * available.length)]);
+      }
+    }
+  },
+
+  spawnNPC(template) {
+    const positions = [
+      { x: 250, y: 110, zone: 'counter' },
+      { x: 47, y: 165, zone: 'booth-l1' },
+      { x: 47, y: 255, zone: 'booth-l2' },
+      { x: 452, y: 165, zone: 'booth-r1' },
+      { x: 452, y: 255, zone: 'booth-r2' },
+    ];
+    const taken = this.npcs.map(n => n.zone);
+    const available = positions.filter(p => !taken.includes(p.zone));
+    if (available.length === 0) return;
+    
+    const pos = available[Math.floor(Math.random() * available.length)];
+    
+    if (!this.npcMemory[template.id]) this.npcMemory[template.id] = {};
+    
+    const npc = {
+      ...template,
+      x: 250, y: 55,
+      targetX: pos.x, targetY: pos.y,
+      zone: pos.zone,
+      state: 'entering',
+      frame: 0, frameTimer: 0, dir: 'down'
+    };
+    
+    this.npcs.push(npc);
+    this.notify(`${template.name} walked in`);
+    Audio.playDoor();
+    this.door.open = true;
+    this.door.timer = 60;
+  },
+
+  rectOverlap(a, b) {
+    return a.x < b.x + b.w && a.x + a.w > b.x && a.y < b.y + b.h && a.y + a.h > b.y;
+  },
+
+  updateZone() {
+    let zone = 'MAIN FLOOR';
+    for (const z of this.zones) {
+      if (this.player.x >= z.x && this.player.x <= z.x + z.w &&
+          this.player.y >= z.y && this.player.y <= z.y + z.h) {
+        zone = z.name;
+        break;
+      }
+    }
+    document.getElementById('location-bar').textContent = zone;
+  },
+
+  checkInteractions() {
+    this.currentInteraction = null;
+    const p = this.player, range = 30;
+    
+    for (const npc of this.npcs) {
+      if (npc.leaving) continue;
+      if (Math.hypot(p.x - npc.x, p.y - npc.y) < range) {
+        this.currentInteraction = { type: 'npc', data: npc };
+        break;
+      }
+    }
+    
+    if (!this.currentInteraction) {
+      for (const obj of this.interactables) {
+        const cx = obj.x + obj.w / 2, cy = obj.y + obj.h / 2;
+        if (Math.hypot(p.x - cx, p.y - cy) < range) {
+          this.currentInteraction = { type: 'object', data: obj };
+          break;
+        }
+      }
+    }
+    
+    const prompt = document.getElementById('interact-prompt');
+    if (this.currentInteraction) {
+      const name = this.currentInteraction.type === 'npc' ?
+        this.currentInteraction.data.name : this.currentInteraction.data.name;
+      prompt.textContent = `[E] ${name}`;
+      prompt.classList.add('visible');
+    } else {
+      prompt.classList.remove('visible');
+    }
+  },
+
+  interact() {
+    if (!this.currentInteraction) return;
+    Audio.playBlip();
+    
+    if (this.currentInteraction.type === 'npc') {
+      this.startDialogue(this.currentInteraction.data);
+    } else {
+      this.interactObject(this.currentInteraction.data);
+    }
+  },
+
+  interactObject(obj) {
+    switch (obj.id) {
+      case 'coffeepot':
+        const coffee = this.inventory.find(i => i.id === 'coffee');
+        coffee.count = Math.min(99, coffee.count + 5);
+        this.updateInventoryUI();
+        this.notify('Refilled coffee (+5)', 'item');
+        Audio.playServe();
+        break;
+      case 'piecase':
+        const pie = this.inventory.find(i => i.id === 'pie');
+        pie.count = Math.min(20, pie.count + 2);
+        this.updateInventoryUI();
+        this.notify('Got more pie (+2)', 'item');
+        Audio.playServe();
+        break;
+      case 'register':
+        this.notify(`Tips collected: $${this.stats.tips}`);
+        break;
+      case 'radio':
+        Audio.playStatic();
+        if (!this.npcMemory.radio) this.npcMemory.radio = {};
+        if (!this.npcMemory.radio.discovered) {
+          this.notify('Static crackles... something trying to get through?', 'item');
+          this.npcMemory.radio.discovered = true;
+          setTimeout(() => this.addQuest('static'), 1000);
+        } else {
+          this.notify('*Static* ...still...listening...?');
+        }
+        break;
+      case 'storage':
+        if (this.quests.maya?.status === 'active' && !this.specialItems.includes('newspaper')) {
+          this.specialItems.push('newspaper');
+          this.notify('Found: OLD NEWSPAPER (June 1983)', 'item');
+          Audio.playQuest();
+        } else if (this.specialItems.includes('newspaper')) {
+          this.notify('You already found the newspaper.');
+        } else {
+          this.notify('Dusty boxes and old menus.');
+        }
+        break;
+    }
+  },
+
+  startDialogue(npc) {
+    const template = this.npcTemplates[npc.id];
+    if (!template) return;
+    
+    const memory = this.npcMemory[npc.id] || {};
+    const dialogue = template.getDialogue(memory, this.quests, this.specialItems);
+    
+    this.dialogueActive = true;
+    this.currentDialogue = { npc, template, dialogue, state: 'start', index: 0 };
+    document.getElementById('dialogue-box').classList.add('active');
+    this.showDialogueLine();
+  },
+
+  showDialogueLine() {
+    const d = this.currentDialogue;
+    const lines = d.dialogue[d.state];
+    if (!lines || d.index >= lines.length) { this.endDialogue(); return; }
+    
+    const line = lines[d.index];
+    
+    document.getElementById('dialogue-portrait').textContent = d.template.portrait;
+    document.getElementById('dialogue-speaker').textContent = d.npc.name;
+    
+    this.typewriterText = line.text;
+    this.typewriterIndex = 0;
+    this.typewriterPitch = d.template.pitch || 1;
+    document.getElementById('dialogue-text').textContent = '';
+    
+    const choicesEl = document.getElementById('dialogue-choices');
+    const continueEl = document.getElementById('dialogue-continue');
+    
+    if (line.choices) {
+      choicesEl.innerHTML = line.choices.map(c => {
+        const needItem = c.need ? this.inventory.find(i => i.id === c.need) : null;
+        const hasItem = !c.need || (needItem && needItem.count > 0);
+        const conditionMet = !c.condition || c.condition();
+        const disabled = !hasItem || !conditionMet;
+        
+        if (!conditionMet && c.condition) return '';
+        
+        let text = c.text;
+        if (c.need && needItem) {
+          text += ` (${needItem.count})`;
+        }
+        if (!hasItem) text += ' [NEED MORE]';
+        
+        return `<button class="dialogue-choice ${c.type || ''} ${disabled ? 'disabled' : ''}"
+          data-choice="${c.id}" ${c.need ? `data-need="${c.need}"` : ''}>${text}</button>`;
+      }).join('');
+      choicesEl.style.display = 'flex';
+      continueEl.style.display = 'none';
+    } else {
+      choicesEl.style.display = 'none';
+      continueEl.style.display = 'block';
+    }
+    
+    if (line.effect) this.applyEffect(line.effect, d.npc);
+    if (line.leave) d.npc.leaving = true;
+  },
+
+  updateTypewriter() {
+    if (!this.dialogueActive || this.typewriterIndex >= this.typewriterText.length) return;
+    this.typewriterIndex++;
+    document.getElementById('dialogue-text').textContent = this.typewriterText.substring(0, this.typewriterIndex);
+    const char = this.typewriterText[this.typewriterIndex - 1];
+    if (char && char !== ' ' && char !== '*' && this.typewriterIndex % 2 === 0) {
+      Audio.playTalk(this.typewriterPitch * (0.9 + Math.random() * 0.2));
+    }
+  },
+
+  handleChoice(choiceId, need) {
+    if (need) {
+      const item = this.inventory.find(i => i.id === need);
+      if (!item || item.count <= 0) {
+        this.notify(`You don't have ${need}!`, 'bad');
+        Audio.playBad();
+        return;
+      }
+      item.count--;
+      this.updateInventoryUI();
+      Audio.playServe();
+    }
+    
+    const d = this.currentDialogue;
+    if (d.dialogue[choiceId]) {
+      d.state = choiceId;
+      d.index = 0;
+      this.showDialogueLine();
+    } else {
+      this.endDialogue();
+    }
+  },
+
+  advanceDialogue() {
+    if (this.typewriterIndex < this.typewriterText.length) {
+      this.typewriterIndex = this.typewriterText.length;
+      document.getElementById('dialogue-text').textContent = this.typewriterText;
+      return;
+    }
+    
+    const d = this.currentDialogue;
+    const lines = d.dialogue[d.state];
+    const line = lines?.[d.index];
+    
+    d.index++;
+    if (!lines || d.index >= lines.length) this.endDialogue();
+    else this.showDialogueLine();
+  },
+
+  endDialogue() {
+    this.dialogueActive = false;
+    this.currentDialogue = null;
+    document.getElementById('dialogue-box').classList.remove('active');
+  },
+
+  applyEffect(eff, npc) {
+    if (eff.tips) {
+      this.stats.tips = Math.max(0, this.stats.tips + eff.tips);
+      if (eff.tips > 0) Audio.playGood();
+    }
+    if (eff.sanity) {
+      this.stats.sanity = Math.max(0, Math.min(100, this.stats.sanity + eff.sanity));
+      if (eff.sanity < -10) Audio.playStatic();
+    }
+    if (eff.served) this.stats.served += eff.served;
+    if (eff.quest) this.addQuest(eff.quest);
+    if (eff.questComplete) this.completeQuest(eff.questComplete);
+    if (eff.item && !this.specialItems.includes(eff.item)) {
+      this.specialItems.push(eff.item);
+      this.notify(`Received: ${eff.item.toUpperCase()}`, 'item');
+    }
+    if (eff.memory && npc) {
+      this.npcMemory[npc.id] = { ...this.npcMemory[npc.id], ...eff.memory };
+    }
+  },
+
+  updateUI() {
+    document.getElementById('stat-tips').textContent = '$' + this.stats.tips;
+    document.getElementById('stat-sanity').textContent = this.stats.sanity;
+    document.getElementById('sanity-bar').style.width = this.stats.sanity + '%';
+    document.getElementById('stat-served').textContent = this.stats.served;
+    
+    const hours = Math.floor(this.shiftTime / 60);
+    const mins = this.shiftTime % 60;
+    const h = hours === 0 ? 12 : hours > 12 ? hours - 12 : hours;
+    const ampm = hours < 12 ? 'AM' : 'PM';
+    document.getElementById('shift-time').textContent = `${h}:${mins.toString().padStart(2, '0')} ${ampm}`;
+  },
+
+  render() {
+    const ctx = this.ctx;
+    ctx.fillStyle = '#0a0a0f';
+    ctx.fillRect(0, 0, this.width, this.height);
+    ctx.save();
+    ctx.translate(-Math.floor(this.camX), -Math.floor(this.camY));
+    
+    this.drawFloor();
+    this.drawWalls();
+    this.drawFurniture();
+    this.drawDoor();
+    this.drawRain();
+    
+    const entities = [...this.npcs.map(n => ({ ...n, isNPC: true })), { ...this.player, isPlayer: true }]
+      .sort((a, b) => a.y - b.y);
+    
+    for (const e of entities) {
+      if (e.isPlayer) this.drawPlayer();
+      else if (e.isNPC) this.drawNPC(e);
+    }
+    
+    ctx.restore();
+  },
+
+  drawFloor() {
+    const ctx = this.ctx, ts = 12;
+    for (let y = 0; y < this.worldH; y += ts) {
+      for (let x = 0; x < this.worldW; x += ts) {
+        const alt = ((x / ts) + (y / ts)) % 2 === 0;
+        ctx.fillStyle = alt ? PAL.tile1 : PAL.tile2;
+        ctx.fillRect(x, y, ts, ts);
+      }
+    }
+    ctx.fillStyle = '#181515';
+    ctx.fillRect(350, 290, 140, 60);
+  },
+
+  drawWalls() {
+    const ctx = this.ctx;
+    ctx.fillStyle = '#1a1418';
+    ctx.fillRect(0, 0, this.worldW, 35);
+    ctx.fillRect(0, 0, 10, this.worldH);
+    ctx.fillRect(this.worldW - 10, 0, 10, this.worldH);
+    ctx.fillRect(0, this.worldH - 10, this.worldW, 10);
+    
+    ctx.fillStyle = '#252020';
+    ctx.fillRect(10, 30, 225, 5);
+    ctx.fillRect(265, 30, 225, 5);
+    
+    // Windows
+    ctx.fillStyle = PAL.window;
+    ctx.fillRect(30, 5, 80, 22);
+    ctx.fillRect(390, 5, 80, 22);
+    ctx.strokeStyle = PAL.windowFrame;
+    ctx.lineWidth = 2;
+    ctx.strokeRect(30, 5, 80, 22);
+    ctx.strokeRect(390, 5, 80, 22);
+    ctx.beginPath();
+    ctx.moveTo(70, 5); ctx.lineTo(70, 27);
+    ctx.moveTo(30, 16); ctx.lineTo(110, 16);
+    ctx.moveTo(430, 5); ctx.lineTo(430, 27);
+    ctx.moveTo(390, 16); ctx.lineTo(470, 16);
+    ctx.stroke();
+    ctx.lineWidth = 1;
+    
+    // Neon signs
+    const glow = Math.sin(this.time / 20) * 0.3 + 0.7;
+    ctx.shadowColor = PAL.neonPink;
+    ctx.shadowBlur = 15 * glow;
+    ctx.fillStyle = PAL.neonPink;
+    ctx.font = '10px "Press Start 2P"';
+    ctx.fillText('OPEN', 135, 18);
+    ctx.shadowBlur = 0;
+    
+    ctx.shadowColor = PAL.neonBlue;
+    ctx.shadowBlur = 12 * glow;
+    ctx.fillStyle = PAL.neonBlue;
+    ctx.fillText('☕', 295, 18);
+    ctx.shadowBlur = 0;
+    
+    // Storage door
+    ctx.fillStyle = '#2a2525';
+    ctx.fillRect(350, 295, 5, 45);
+    ctx.fillStyle = '#3a3030';
+    ctx.font = '8px VT323';
+    ctx.fillText('STORAGE', 380, 305);
+  },
+
+  drawDoor() {
+    const ctx = this.ctx, d = this.door;
+    ctx.fillStyle = '#3a3030';
+    ctx.fillRect(d.x - 3, 0, 3, 35);
+    ctx.fillRect(d.x + d.w, 0, 3, 35);
+    
+    if (this.door.open) {
+      ctx.fillStyle = '#0a0a0f';
+      ctx.fillRect(d.x, 0, d.w, 35);
+    } else {
+      ctx.fillStyle = '#4a4040';
+      ctx.fillRect(d.x, 5, d.w, 30);
+      ctx.fillStyle = PAL.chrome;
+      ctx.fillRect(d.x + d.w - 8, 18, 4, 6);
+    }
+  },
+
+  drawFurniture() {
+    const ctx = this.ctx;
+    
+    // Counter
+    ctx.fillStyle = PAL.counter;
+    ctx.fillRect(160, 80, 180, 25);
+    ctx.fillStyle = PAL.counterTop;
+    ctx.fillRect(160, 80, 180, 5);
+    
+    // Stools
+    for (let i = 0; i < 5; i++) {
+      ctx.fillStyle = PAL.metalDark;
+      ctx.fillRect(175 + i * 32, 115, 4, 8);
+      ctx.fillStyle = PAL.metal;
+      ctx.beginPath();
+      ctx.arc(177 + i * 32, 112, 8, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    
+    // Counter items
+    ctx.fillStyle = '#444';
+    ctx.fillRect(200, 85, 20, 12);
+    ctx.fillStyle = PAL.neonBlue;
+    ctx.fillRect(202, 87, 6, 4);
+    
+    ctx.fillStyle = '#eee';
+    ctx.fillRect(240, 88, 25, 8);
+    ctx.fillRect(280, 88, 12, 8);
+    
+    ctx.fillStyle = PAL.chrome;
+    ctx.fillRect(320, 86, 15, 12);
+    ctx.fillStyle = PAL.neonYellow;
+    ctx.fillRect(322, 88, 8, 4);
+    
+    // Pie case
+    ctx.fillStyle = PAL.chrome;
+    ctx.fillRect(355, 85, 25, 15);
+    ctx.fillStyle = 'rgba(100,150,200,0.3)';
+    ctx.fillRect(357, 87, 21, 11);
+    ctx.fillStyle = '#dd9944';
+    ctx.fillRect(362, 90, 8, 5);
+    
+    // Booths
+    [[20, 140], [20, 230], [425, 140], [425, 230]].forEach(([bx, by]) => {
+      ctx.fillStyle = PAL.boothSeat;
+      ctx.fillRect(bx, by, 55, 35);
+      ctx.fillStyle = PAL.booth;
+      ctx.fillRect(bx, by, 55, 8);
+      ctx.fillStyle = PAL.counterTop;
+      ctx.fillRect(bx + 5, by + 40, 45, 20);
+      ctx.fillStyle = PAL.counter;
+      ctx.fillRect(bx + 8, by + 55, 5, 8);
+      ctx.fillRect(bx + 42, by + 55, 5, 8);
+      ctx.fillStyle = '#cc3333';
+      ctx.fillRect(bx + 15, by + 42, 5, 8);
+      ctx.fillStyle = '#cccc33';
+      ctx.fillRect(bx + 22, by + 42, 5, 8);
+    });
+    
+    // Radio
+    ctx.fillStyle = '#3a3020';
+    ctx.fillRect(380, 50, 30, 20);
+    ctx.fillStyle = '#2a2015';
+    ctx.fillRect(382, 52, 20, 12);
+    const radioGlow = (Math.sin(this.time / 10) > 0.5) ? 1 : 0.3;
+    ctx.fillStyle = PAL.neonYellow;
+    ctx.globalAlpha = radioGlow;
+    ctx.fillRect(384, 55, 8, 3);
+    ctx.globalAlpha = 1;
+    ctx.fillStyle = '#111';
+    ctx.fillRect(394, 53, 6, 8);
+    ctx.fillStyle = PAL.chrome;
+    ctx.fillRect(404, 52, 4, 10);
+    
+    // Jukebox
+    ctx.fillStyle = '#4a3040';
+    ctx.fillRect(120, 290, 35, 45);
+    ctx.fillStyle = '#2a1820';
+    ctx.fillRect(123, 295, 29, 20);
+    const jukePhase = this.time / 5;
+    [PAL.neonPink, PAL.neonBlue, PAL.neonYellow, PAL.neonPurple].forEach((c, i) => {
+      ctx.fillStyle = c;
+      ctx.globalAlpha = (Math.sin(jukePhase + i) + 1) / 2;
+      ctx.fillRect(125 + i * 6, 297, 4, 3);
+    });
+    ctx.globalAlpha = 1;
+    
+    // Clock
+    ctx.fillStyle = '#222';
+    ctx.beginPath();
+    ctx.arc(250, 60, 12, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = '#ddd';
+    ctx.beginPath();
+    ctx.arc(250, 60, 10, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = '#111';
+    ctx.fillRect(249, 52, 2, 8);
+    ctx.fillRect(249, 58, 6, 2);
+    
+    // Storage boxes
+    ctx.fillStyle = '#2a2520';
+    ctx.fillRect(360, 310, 25, 20);
+    ctx.fillRect(390, 315, 20, 15);
+    ctx.fillRect(420, 308, 30, 22);
+    ctx.fillStyle = '#333';
+    ctx.font = '6px VT323';
+    ctx.fillText('1983', 365, 322);
+    
+    // Newspaper hint
+    if (this.quests.maya?.status === 'active' && !this.specialItems.includes('newspaper')) {
+      ctx.fillStyle = PAL.neonYellow;
+      ctx.globalAlpha = (Math.sin(this.time / 15) + 1) / 2 * 0.5;
+      ctx.fillRect(395, 318, 30, 15);
+      ctx.globalAlpha = 1;
+    }
+  },
+
+  drawRain() {
+    const ctx = this.ctx;
+    ctx.fillStyle = 'rgba(100,150,200,0.3)';
+    for (let i = 0; i < 30; i++) {
+      const x = (this.time * 2 + i * 37) % this.worldW;
+      const y = (this.time * 4 + i * 23) % 30;
+      if ((x > 30 && x < 110) || (x > 390 && x < 470)) {
+        ctx.fillRect(x, y, 1, 3);
+      }
+    }
+  },
+
+  drawPlayer() {
+    this.drawCharacter(Math.floor(this.player.x), Math.floor(this.player.y), {
+      skin: '#e5c0b0', shirt: '#446655', hair: '#332211',
+      dir: this.player.dir, frame: this.player.frame, moving: this.player.moving
+    }, true);
+  },
+
+  drawNPC(npc) {
+    const ctx = this.ctx, x = Math.floor(npc.x), y = Math.floor(npc.y);
+    const template = this.npcTemplates[npc.id];
+    this.drawCharacter(x, y, {
+      ...template, dir: npc.dir, frame: npc.frame,
+      moving: npc.state === 'entering' || npc.leaving
+    }, false);
+    
+    const idle = Math.sin(this.time / 30 + npc.x) * 0.5;
+    const memory = this.npcMemory[npc.id] || {};
+    
+    ctx.fillStyle = memory.visited ? PAL.neonBlue : PAL.neonPink;
+    ctx.font = '8px VT323';
+    ctx.textAlign = 'center';
+    ctx.fillText(npc.name, x, y - 24 - idle);
+    
+    if (!memory.visited) {
+      const bob = Math.sin(this.time / 8) * 2;
+      ctx.fillStyle = PAL.neonYellow;
+      ctx.font = '12px VT323';
+      ctx.fillText('!', x, y - 32 - idle + bob);
+    }
+  },
+
+  drawCharacter(x, y, char, isPlayer) {
+    const ctx = this.ctx;
+    const px = (ox, oy, c) => { ctx.fillStyle = c; ctx.fillRect(x + ox, y + oy, 2, 2); };
+    
+    ctx.fillStyle = 'rgba(0,0,0,0.3)';
+    ctx.beginPath();
+    ctx.ellipse(x, y + 2, 6, 3, 0, 0, Math.PI * 2);
+    ctx.fill();
+    
+    const frame = char.frame || 0;
+    const dir = char.dir || 'down';
+    const moving = char.moving || false;
+    const bob = moving ? Math.sin(frame * Math.PI / 2) * 0.5 : (isPlayer ? 0 : Math.sin(this.time / 30 + x) * 0.3);
+    const legL = moving ? Math.sin(frame * Math.PI / 2) * 2 : 0;
+    const legR = moving ? -Math.sin(frame * Math.PI / 2) * 2 : 0;
+    
+    const skin = char.skin || '#e5c0b0';
+    const hair = char.hair || '#333';
+    const shirt = char.shirt || '#446655';
+    const shirtDark = this.darken(shirt, 25);
+    
+    px(-3, -2 + legL, '#1a1a2a'); px(-1, -2 + legL, '#1a1a2a');
+    px(1, -2 + legR, '#1a1a2a'); px(3, -2 + legR, '#1a1a2a');
+    px(-3, -4 + legL, '#2a2a3a'); px(-1, -4 + legL, '#2a2a3a');
+    px(1, -4 + legR, '#2a2a3a'); px(3, -4 + legR, '#2a2a3a');
+    px(-3, -6, '#2a2a3a'); px(-1, -6, '#2a2a3a');
+    px(1, -6, '#2a2a3a'); px(3, -6, '#2a2a3a');
+    
+    for (let ty = -8; ty >= -14; ty -= 2) {
+      px(-3, ty - bob, ty === -8 ? shirtDark : shirt);
+      px(-1, ty - bob, shirt); px(1, ty - bob, shirt);
+      px(3, ty - bob, ty === -8 ? shirtDark : shirt);
+    }
+    
+    if (dir === 'left') { px(-5, -10 - bob, skin); px(-5, -8 - bob, skin); }
+    else if (dir === 'right') { px(5, -10 - bob, skin); px(5, -8 - bob, skin); }
+    else { px(-5, -10 - bob, skin); px(5, -10 - bob, skin); }
+    
+    const headY = -16 - bob;
+    px(-3, headY, skin); px(-1, headY, skin); px(1, headY, skin); px(3, headY, skin);
+    px(-3, headY - 2, skin); px(-1, headY - 2, skin); px(1, headY - 2, skin); px(3, headY - 2, skin);
+    
+    px(-3, headY - 4, hair); px(-1, headY - 4, hair); px(1, headY - 4, hair); px(3, headY - 4, hair);
+    if (dir !== 'up') { px(-3, headY - 2, hair); px(3, headY - 2, hair); }
+    
+    if (dir !== 'up') {
+      const eyeOff = dir === 'left' ? -1 : dir === 'right' ? 1 : 0;
+      px(-1 + eyeOff, headY, '#111'); px(1 + eyeOff, headY, '#111');
+    }
+    
+    if (isPlayer) {
+      ctx.fillStyle = PAL.neonBlue;
+      ctx.beginPath();
+      ctx.moveTo(x, y - 26 - bob);
+      ctx.lineTo(x - 3, y - 30 - bob);
+      ctx.lineTo(x + 3, y - 30 - bob);
+      ctx.closePath();
+      ctx.fill();
+    }
+  },
+
+  darken(hex, amt) {
+    const num = parseInt(hex.replace('#', ''), 16);
+    return '#' + [16, 8, 0].map(s =>
+      Math.max(0, ((num >> s) & 0xff) - amt).toString(16).padStart(2, '0')
+    ).join('');
+  }
+};
+
+document.addEventListener('DOMContentLoaded', () => Game.init());
+</script>
+</body>
+</html>

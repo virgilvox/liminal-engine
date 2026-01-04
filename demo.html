@@ -1,0 +1,1321 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+  <title>SPACE_DYNAMICS // A Hackerspace Simulation</title>
+  <link href="https://fonts.googleapis.com/css2?family=VT323&family=Press+Start+2P&display=swap" rel="stylesheet">
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+    :root { --paper: #f5f0e6; --ink: #1a1a1a; --accent: #ff3366; --accent2: #00ff88; --accent3: #ffcc00; }
+    @keyframes blink { 0%, 50% { opacity: 1; } 51%, 100% { opacity: 0; } }
+    @keyframes pulse { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.02); } }
+    @keyframes float { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-4px); } }
+    body {
+      font-family: 'VT323', monospace;
+      background: #0d0d0d;
+      color: var(--paper);
+      overflow: hidden;
+      height: 100vh; height: 100dvh;
+      width: 100vw;
+      position: fixed;
+      touch-action: none;
+      user-select: none;
+    }
+    #game-container { position: absolute; top: 0; left: 0; width: 100%; height: 100%; }
+    .crt-overlay {
+      position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+      pointer-events: none; z-index: 1000;
+      background: repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(0,0,0,0.08) 2px, rgba(0,0,0,0.08) 4px);
+    }
+    #title-screen {
+      position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+      background: radial-gradient(ellipse at center, #1a1a2e 0%, #0d0d0d 100%);
+      display: flex; flex-direction: column; align-items: center; justify-content: center;
+      z-index: 100; transition: opacity 0.8s, visibility 0.8s; padding: 1rem;
+    }
+    #title-screen.hidden { opacity: 0; visibility: hidden; pointer-events: none; }
+    .title-art {
+      font-family: 'Press Start 2P', monospace;
+      font-size: clamp(1.2rem, 5vw, 2.5rem);
+      color: var(--accent2);
+      text-shadow: 0 0 10px rgba(0,255,136,0.5), 0 0 20px rgba(0,255,136,0.3), 4px 4px 0 #0a0a0a;
+      animation: pulse 3s infinite; text-align: center;
+    }
+    .title-sub { font-size: clamp(1rem, 3vw, 1.5rem); color: var(--paper); margin-top: 0.5rem; opacity: 0.7; letter-spacing: 0.4em; }
+    .title-tagline { font-size: clamp(0.9rem, 2.5vw, 1.2rem); color: var(--accent); margin-top: 2rem; font-style: italic; text-align: center; max-width: 400px; }
+    .start-btn {
+      margin-top: 2.5rem; font-family: 'Press Start 2P', monospace;
+      font-size: clamp(0.7rem, 2vw, 0.9rem); color: var(--accent3);
+      background: transparent; border: 3px solid var(--accent3);
+      padding: 1rem 2rem; cursor: pointer; animation: blink 1.2s infinite;
+    }
+    .start-btn:hover { background: var(--accent3); color: #0d0d0d; animation: none; }
+    .title-controls { margin-top: 2rem; font-size: 0.9rem; color: rgba(255,255,255,0.5); text-align: center; line-height: 1.8; }
+    .title-controls kbd { background: rgba(255,255,255,0.1); padding: 0.2rem 0.5rem; border-radius: 3px; }
+    .title-credits { position: absolute; bottom: 1rem; font-size: 0.8rem; color: rgba(255,255,255,0.3); }
+    #game-world { position: absolute; top: 0; left: 0; width: 100%; height: 100%; display: none; background: #0d0d0d; }
+    #game-world.active { display: flex; align-items: center; justify-content: center; }
+    #game-canvas { display: block; image-rendering: pixelated; image-rendering: crisp-edges; border: 3px solid #2a2a3a; box-shadow: 0 0 30px rgba(0,0,0,0.5); }
+    #game-canvas { display: block; image-rendering: pixelated; image-rendering: crisp-edges; }
+    #ui-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; z-index: 50; }
+    #location-bar {
+      position: absolute; top: 0.5rem; left: 0.5rem;
+      background: rgba(0,0,0,0.85); border: 2px solid var(--accent2);
+      padding: 0.4rem 0.8rem; font-size: clamp(0.8rem, 2vw, 1rem); color: var(--accent2);
+      pointer-events: auto;
+    }
+    #vibe-panel {
+      position: absolute; top: 0.5rem; left: 50%; transform: translateX(-50%);
+      background: rgba(0,0,0,0.85); border: 2px solid var(--accent3);
+      padding: 0.4rem 0.8rem; font-size: 0.8rem; pointer-events: auto;
+      display: flex; align-items: center; gap: 0.5rem;
+    }
+    #vibe-label { color: var(--accent3); }
+    #vibe-bar { width: 80px; height: 8px; background: #333; position: relative; }
+    #vibe-fill { height: 100%; background: var(--accent2); transition: width 0.5s, background 0.5s; }
+    #vibe-text { color: var(--paper); font-size: 0.7rem; }
+    #activity-log {
+      position: absolute; top: 2.8rem; left: 0.5rem;
+      background: rgba(0,0,0,0.7); border: 1px solid rgba(255,255,255,0.2);
+      padding: 0.3rem 0.5rem; font-size: 0.65rem; color: rgba(255,255,255,0.6);
+      max-width: 180px; max-height: 60px; overflow: hidden; pointer-events: none;
+    }
+    #stats-panel {
+      position: absolute; top: 0.5rem; right: 0.5rem;
+      background: rgba(0,0,0,0.85); border: 2px solid var(--accent3);
+      padding: 0.4rem 0.6rem; font-size: clamp(0.7rem, 1.8vw, 0.85rem);
+      pointer-events: auto; min-width: 90px;
+    }
+    .stat-row { display: flex; justify-content: space-between; gap: 0.4rem; margin: 0.1rem 0; }
+    .stat-label { color: var(--accent3); }
+    .stat-value { color: var(--accent2); }
+    .stat-bar { width: 100%; height: 5px; background: #333; margin-top: 2px; }
+    .stat-bar-fill { height: 100%; background: var(--accent2); transition: width 0.3s; }
+    .stat-bar-fill.low { background: var(--accent); }
+    .stat-bar-fill.med { background: var(--accent3); }
+    #interact-prompt {
+      position: absolute; bottom: 11rem; left: 50%; transform: translateX(-50%);
+      background: rgba(0,0,0,0.9); border: 2px solid var(--accent);
+      padding: 0.4rem 0.8rem; font-size: clamp(0.8rem, 2vw, 1rem); color: var(--accent);
+      opacity: 0; transition: opacity 0.2s; animation: float 2s infinite;
+    }
+    #interact-prompt.visible { opacity: 1; }
+    @media (min-width: 769px) and (pointer: fine) {
+      #interact-prompt { bottom: 7rem; }
+    }
+    #dialogue-box {
+      position: absolute; bottom: 10rem; left: 50%; transform: translateX(-50%);
+      width: calc(100% - 1rem); max-width: 550px;
+      background: rgba(0,0,0,0.95); border: 3px solid var(--paper);
+      padding: 0.7rem 0.9rem; display: none; pointer-events: auto;
+    }
+    #dialogue-box.active { display: block; }
+    @media (min-width: 769px) and (pointer: fine) {
+      #dialogue-box { bottom: 0.5rem; }
+    }
+    #dialogue-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.3rem; }
+    #dialogue-speaker { font-size: clamp(0.85rem, 2.2vw, 1rem); color: var(--accent2); letter-spacing: 0.1em; }
+    #dialogue-mood { font-size: 0.7rem; padding: 0.1rem 0.4rem; border-radius: 2px; }
+    #dialogue-text { font-size: clamp(0.95rem, 2.5vw, 1.15rem); color: var(--paper); line-height: 1.4; min-height: 2.2em; }
+    #dialogue-choices { margin-top: 0.6rem; display: flex; flex-direction: column; gap: 0.3rem; }
+    .dialogue-choice {
+      background: transparent; border: 2px solid var(--accent); color: var(--accent);
+      padding: 0.35rem 0.7rem; font-family: 'VT323', monospace;
+      font-size: clamp(0.8rem, 1.8vw, 0.95rem); cursor: pointer; text-align: left;
+      transition: all 0.15s;
+    }
+    .dialogue-choice:hover { background: var(--accent); color: #0d0d0d; }
+    .dialogue-choice.good { border-color: var(--accent2); color: var(--accent2); }
+    .dialogue-choice.good:hover { background: var(--accent2); color: #0d0d0d; }
+    .dialogue-choice.bad { border-color: #aa4444; color: #aa4444; }
+    .dialogue-choice.bad:hover { background: #aa4444; color: #0d0d0d; }
+    .dialogue-choice::before { content: '> '; }
+    #dialogue-continue { position: absolute; bottom: 0.3rem; right: 0.6rem; color: var(--accent3); font-size: 0.75rem; animation: blink 1s infinite; }
+    @media (max-width: 768px), (pointer: coarse) {
+      #dialogue-continue::after { content: '[TAP or ACT]'; }
+    }
+    @media (min-width: 769px) and (pointer: fine) {
+      #dialogue-continue::after { content: '[SPACE]'; }
+    }
+    #mobile-controls { position: absolute; bottom: 1.5rem; left: 1.5rem; display: none; pointer-events: auto; z-index: 60; }
+    @media (max-width: 768px), (pointer: coarse) { #mobile-controls { display: block; } }
+    #joystick-container { width: 120px; height: 120px; }
+    #joystick-base {
+      width: 100%; height: 100%; border-radius: 50%;
+      background: rgba(0,0,0,0.5); border: 3px solid var(--accent2);
+      position: relative; box-shadow: 0 0 20px rgba(0,255,136,0.2);
+    }
+    #joystick-knob {
+      width: 50px; height: 50px; border-radius: 50%;
+      background: radial-gradient(circle at 30% 30%, var(--accent2), #006644);
+      border: 2px solid rgba(255,255,255,0.3);
+      position: absolute; top: 50%; left: 50%;
+      transform: translate(-50%, -50%);
+      box-shadow: 0 4px 8px rgba(0,0,0,0.4);
+      transition: none;
+    }
+    #action-btn {
+      position: absolute; bottom: 0.8rem; right: 0.8rem;
+      width: 55px; height: 55px; border-radius: 50%;
+      background: rgba(0,0,0,0.7); border: 3px solid var(--accent); color: var(--accent);
+      font-family: 'VT323', monospace; font-size: 0.85rem;
+      display: none; align-items: center; justify-content: center;
+      pointer-events: auto; cursor: pointer; z-index: 60;
+    }
+    @media (max-width: 768px), (pointer: coarse) { #action-btn { display: flex; } }
+    #action-btn:active { background: var(--accent); color: #0d0d0d; }
+    #help-btn, #audio-btn {
+      position: absolute; top: 2.8rem; background: rgba(0,0,0,0.8);
+      border: 2px solid var(--paper); color: var(--paper);
+      width: 24px; height: 24px; font-size: 0.9rem; cursor: pointer;
+      pointer-events: auto; display: flex; align-items: center; justify-content: center;
+    }
+    #help-btn { right: 0.5rem; }
+    #audio-btn { right: 2.2rem; border-color: var(--accent2); color: var(--accent2); }
+    #audio-btn.muted { border-color: var(--accent); color: var(--accent); }
+    #help-overlay {
+      position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+      background: rgba(0,0,0,0.92); display: none; align-items: center; justify-content: center;
+      pointer-events: auto; z-index: 80; padding: 1rem; overflow-y: auto;
+    }
+    #help-overlay.active { display: flex; }
+    #help-content { background: #0d0d0d; border: 3px solid var(--paper); padding: 1.2rem; max-width: 420px; width: 100%; max-height: 90vh; overflow-y: auto; }
+    #help-content h2 { color: var(--accent2); margin-bottom: 0.8rem; font-size: 1.2rem; }
+    #help-content h3 { color: var(--accent3); margin: 0.8rem 0 0.4rem; font-size: 1rem; }
+    #help-content p { margin: 0.3rem 0; font-size: 0.9rem; color: var(--paper); }
+    #help-content kbd { background: var(--accent); color: #0d0d0d; padding: 0.1rem 0.3rem; font-size: 0.8rem; }
+    #help-close { margin-top: 1rem; width: 100%; padding: 0.5rem; background: transparent; border: 2px solid var(--accent); color: var(--accent); font-family: 'VT323', 
+monospace; font-size: 1rem; cursor: pointer; }
+    #notification {
+      position: absolute; top: 45%; left: 50%; transform: translate(-50%, -50%);
+      background: rgba(0,0,0,0.95); border: 3px solid var(--accent2);
+      padding: 0.6rem 1.2rem; font-size: 1.1rem; color: var(--accent2);
+      opacity: 0; transition: opacity 0.3s; pointer-events: none; z-index: 70; text-align: center;
+    }
+    #notification.visible { opacity: 1; }
+    #notification.bad { border-color: var(--accent); color: var(--accent); }
+  </style>
+</head>
+<body>
+  <div id="game-container">
+    <div id="title-screen">
+      <div class="title-art">SPACE_DYNAMICS</div>
+      <div class="title-sub">A Hackerspace Simulation</div>
+      <div class="title-tagline">"Community first, space second. Navigate the chaos of running a makerspace where every interaction matters."</div>
+      <button class="start-btn" id="start-btn">START</button>
+      <div class="title-controls">
+        <kbd>WASD</kbd> Move &nbsp;•&nbsp; <kbd>E</kbd> Interact
+      </div>
+      <div class="title-credits">A game about maker culture // 2024</div>
+    </div>
+
+    <div id="game-world">
+      <canvas id="game-canvas"></canvas>
+      <div id="ui-overlay">
+        <div id="location-bar">ENTRANCE</div>
+        <div id="vibe-panel">
+          <span id="vibe-label">VIBE:</span>
+          <div id="vibe-bar"><div id="vibe-fill" style="width:70%"></div></div>
+          <span id="vibe-text">Chill</span>
+        </div>
+        <div id="activity-log"></div>
+        <button id="help-btn">?</button>
+        <button id="audio-btn">♪</button>
+        <div id="stats-panel">
+          <div class="stat-row"><span class="stat-label">MEMBERS</span><span class="stat-value" id="stat-members">5</span></div>
+          <div class="stat-row"><span class="stat-label">TRUST</span><span class="stat-value" id="stat-trust">50</span></div>
+          <div class="stat-bar"><div class="stat-bar-fill med" id="trust-bar" style="width:50%"></div></div>
+          <div class="stat-row"><span class="stat-label">ENERGY</span><span class="stat-value" id="stat-energy">100</span></div>
+          <div class="stat-bar"><div class="stat-bar-fill" id="energy-bar" style="width:100%"></div></div>
+        </div>
+        <div id="interact-prompt">[E] Talk</div>
+        <div id="dialogue-box">
+          <div id="dialogue-header">
+            <span id="dialogue-speaker">???</span>
+            <span id="dialogue-mood"></span>
+          </div>
+          <div id="dialogue-text"></div>
+          <div id="dialogue-choices"></div>
+          <div id="dialogue-continue"></div>
+        </div>
+        <div id="mobile-controls">
+          <div id="joystick-container">
+            <div id="joystick-base">
+              <div id="joystick-knob"></div>
+            </div>
+          </div>
+        </div>
+        <button id="action-btn">ACT</button>
+        <div id="notification"></div>
+        <div id="help-overlay">
+          <div id="help-content">
+            <h2>// HOW TO PLAY //</h2>
+            <p><kbd>WASD</kbd> or Arrows to move</p>
+            <p><kbd>E</kbd> or <kbd>Space</kbd> to interact</p>
+            <h3>THE GOAL</h3>
+            <p>Keep the hackerspace thriving. Your choices affect member morale, the space vibe, and whether people stay or leave.</p>
+            <h3>MEMBER TYPES</h3>
+            <p><span style="color:#ffcc00">❓ NEWCOMERS</span> - Potential members. How you welcome them matters!</p>
+            <p><span style="color:#00ff88">✓ MEMBERS</span> - Active community. Watch for burnout.</p>
+            <p><span style="color:#ff3366">⚠ TOXIC</span> - Problematic folks. Handle carefully.</p>
+            <h3>KEY PRINCIPLES</h3>
+            <p>• <b>Community first, space second</b></p>
+            <p>• Monthly <b>donations</b>, not membership fees</p>
+            <p>• $25 starter / $50 for storage + card eligibility</p>
+            <p>• Card access is voted on, not automatic</p>
+            <button id="help-close">[GOT IT]</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="crt-overlay"></div>
+
+<script>
+const Audio = {
+  ctx: null, masterGain: null, musicGain: null, sfxGain: null,
+  muted: false, initialized: false, musicInterval: null, beat: 0,
+  bpm: 85, // Chill lo-fi tempo
+  
+  // Musical data
+  bassPattern: [0, 0, 3, 3, 5, 5, 3, 3], // Scale degrees
+  melodyPattern: [
+    { note: 7, dur: 2 }, { note: 5, dur: 1 }, { note: 3, dur: 1 },
+    { note: 5, dur: 2 }, { note: null, dur: 2 },
+    { note: 3, dur: 1 }, { note: 5, dur: 1 }, { note: 7, dur: 2 }, { note: 8, dur: 2 },
+    { note: 7, dur: 2 }, { note: null, dur: 2 }, { note: 5, dur: 2 }, { note: 3, dur: 2 },
+  ],
+  chordProg: [
+    [0, 4, 7, 11],   // Cmaj7
+    [5, 9, 0, 4],    // Fmaj7  
+    [7, 11, 2, 5],   // G7
+    [0, 4, 7, 11],   // Cmaj7
+  ],
+  scale: [261.63, 293.66, 329.63, 349.23, 392.00, 440.00, 493.88, 523.25, 587.33], // C major scale + octave
+  
+  init() {
+    if (this.initialized) return;
+    try {
+      this.ctx = new (window.AudioContext || window.webkitAudioContext)();
+      this.masterGain = this.ctx.createGain(); this.masterGain.gain.value = 0.5; this.masterGain.connect(this.ctx.destination);
+      this.musicGain = this.ctx.createGain(); this.musicGain.gain.value = 0.35; this.musicGain.connect(this.masterGain);
+      this.sfxGain = this.ctx.createGain(); this.sfxGain.gain.value = 0.4; this.sfxGain.connect(this.masterGain);
+      this.initialized = true;
+    } catch(e) {}
+  },
+  resume() { if (this.ctx?.state === 'suspended') this.ctx.resume(); },
+  toggleMute() { this.muted = !this.muted; if (this.masterGain) this.masterGain.gain.value = this.muted ? 0 : 0.5; return this.muted; },
+  
+  startMusic() {
+    if (!this.initialized || this.musicInterval) return;
+    const beatTime = 60000 / this.bpm / 2; // Eighth notes
+    this.beat = 0;
+    this.melodyIndex = 0;
+    this.melodyCounter = 0;
+    this.playBeat();
+    this.musicInterval = setInterval(() => this.playBeat(), beatTime);
+  },
+  
+  playBeat() {
+    if (!this.ctx || this.muted) { this.beat++; return; }
+    const now = this.ctx.currentTime;
+    const beatInBar = this.beat % 16;
+    const bar = Math.floor(this.beat / 16) % 4;
+    
+    // Drums
+    if (beatInBar % 4 === 0) this.playKick(now);
+    if (beatInBar % 4 === 2) this.playSnare(now);
+    if (beatInBar % 2 === 0) this.playHat(now, false);
+    else this.playHat(now, true); // Offbeat hats quieter
+    
+    // Bass - plays on every other beat
+    if (beatInBar % 2 === 0) {
+      const bassNote = this.bassPattern[beatInBar / 2];
+      this.playBass(now, this.scale[bassNote] * 0.5);
+    }
+    
+    // Chords - play on beat 0 and 8 of each bar
+    if (beatInBar === 0 || beatInBar === 8) {
+      const chord = this.chordProg[bar];
+      this.playChord(now, chord);
+    }
+    
+    // Melody
+    if (this.melodyCounter <= 0) {
+      const m = this.melodyPattern[this.melodyIndex];
+      if (m.note !== null) {
+        this.playMelody(now, this.scale[m.note]);
+      }
+      this.melodyCounter = m.dur;
+      this.melodyIndex = (this.melodyIndex + 1) % this.melodyPattern.length;
+    }
+    this.melodyCounter--;
+    
+    this.beat++;
+  },
+  
+  playKick(time) {
+    const osc = this.ctx.createOscillator(), gain = this.ctx.createGain();
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(150, time);
+    osc.frequency.exponentialRampToValueAtTime(40, time + 0.1);
+    gain.gain.setValueAtTime(0.6, time);
+    gain.gain.exponentialRampToValueAtTime(0.01, time + 0.15);
+    osc.connect(gain); gain.connect(this.musicGain);
+    osc.start(time); osc.stop(time + 0.15);
+  },
+  
+  playSnare(time) {
+    // Noise burst for snare
+    const bufferSize = this.ctx.sampleRate * 0.1;
+    const buffer = this.ctx.createBuffer(1, bufferSize, this.ctx.sampleRate);
+    const data = buffer.getChannelData(0);
+    for (let i = 0; i < bufferSize; i++) data[i] = Math.random() * 2 - 1;
+    const noise = this.ctx.createBufferSource();
+    noise.buffer = buffer;
+    const noiseGain = this.ctx.createGain();
+    const filter = this.ctx.createBiquadFilter();
+    filter.type = 'highpass'; filter.frequency.value = 1000;
+    noiseGain.gain.setValueAtTime(0.3, time);
+    noiseGain.gain.exponentialRampToValueAtTime(0.01, time + 0.1);
+    noise.connect(filter); filter.connect(noiseGain); noiseGain.connect(this.musicGain);
+    noise.start(time); noise.stop(time + 0.1);
+    // Tonal component
+    const osc = this.ctx.createOscillator(), gain = this.ctx.createGain();
+    osc.type = 'triangle'; osc.frequency.value = 180;
+    gain.gain.setValueAtTime(0.2, time);
+    gain.gain.exponentialRampToValueAtTime(0.01, time + 0.05);
+    osc.connect(gain); gain.connect(this.musicGain);
+    osc.start(time); osc.stop(time + 0.05);
+  },
+  
+  playHat(time, soft) {
+    const bufferSize = this.ctx.sampleRate * 0.05;
+    const buffer = this.ctx.createBuffer(1, bufferSize, this.ctx.sampleRate);
+    const data = buffer.getChannelData(0);
+    for (let i = 0; i < bufferSize; i++) data[i] = Math.random() * 2 - 1;
+    const noise = this.ctx.createBufferSource();
+    noise.buffer = buffer;
+    const gain = this.ctx.createGain();
+    const filter = this.ctx.createBiquadFilter();
+    filter.type = 'highpass'; filter.frequency.value = 7000;
+    gain.gain.setValueAtTime(soft ? 0.06 : 0.12, time);
+    gain.gain.exponentialRampToValueAtTime(0.01, time + 0.03);
+    noise.connect(filter); filter.connect(gain); gain.connect(this.musicGain);
+    noise.start(time); noise.stop(time + 0.05);
+  },
+  
+  playBass(time, freq) {
+    const osc = this.ctx.createOscillator(), gain = this.ctx.createGain();
+    const filter = this.ctx.createBiquadFilter();
+    osc.type = 'sawtooth'; osc.frequency.value = freq;
+    filter.type = 'lowpass'; filter.frequency.value = 400;
+    gain.gain.setValueAtTime(0.35, time);
+    gain.gain.setValueAtTime(0.35, time + 0.1);
+    gain.gain.exponentialRampToValueAtTime(0.01, time + 0.25);
+    osc.connect(filter); filter.connect(gain); gain.connect(this.musicGain);
+    osc.start(time); osc.stop(time + 0.25);
+  },
+  
+  playChord(time, chord) {
+    chord.forEach((semitone, i) => {
+      const freq = 261.63 * Math.pow(2, semitone / 12) * 0.5;
+      const osc = this.ctx.createOscillator(), gain = this.ctx.createGain();
+      const filter = this.ctx.createBiquadFilter();
+      osc.type = 'triangle'; osc.frequency.value = freq;
+      filter.type = 'lowpass'; filter.frequency.value = 600;
+      gain.gain.setValueAtTime(0, time);
+      gain.gain.linearRampToValueAtTime(0.08, time + 0.05);
+      gain.gain.setValueAtTime(0.08, time + 0.3);
+      gain.gain.exponentialRampToValueAtTime(0.01, time + 0.8);
+      osc.connect(filter); filter.connect(gain); gain.connect(this.musicGain);
+      osc.start(time + i * 0.02); osc.stop(time + 0.8);
+    });
+  },
+  
+  playMelody(time, freq) {
+    const osc = this.ctx.createOscillator(), gain = this.ctx.createGain();
+    const filter = this.ctx.createBiquadFilter();
+    osc.type = 'square'; osc.frequency.value = freq;
+    filter.type = 'lowpass'; filter.frequency.value = 1200;
+    gain.gain.setValueAtTime(0, time);
+    gain.gain.linearRampToValueAtTime(0.15, time + 0.02);
+    gain.gain.setValueAtTime(0.12, time + 0.1);
+    gain.gain.exponentialRampToValueAtTime(0.01, time + 0.3);
+    osc.connect(filter); filter.connect(gain); gain.connect(this.musicGain);
+    osc.start(time); osc.stop(time + 0.3);
+  },
+
+  playStep() { if (!this.ctx || this.muted) return; const osc = this.ctx.createOscillator(), gain = this.ctx.createGain(), now = this.ctx.currentTime; osc.type = 'square'; 
+osc.frequency.value = 50 + Math.random() * 25; gain.gain.setValueAtTime(0.06, now); gain.gain.exponentialRampToValueAtTime(0.001, now + 0.03); osc.connect(gain); 
+gain.connect(this.sfxGain); osc.start(now); osc.stop(now + 0.03); },
+  playBlip() { if (!this.ctx || this.muted) return; const osc = this.ctx.createOscillator(), gain = this.ctx.createGain(), now = this.ctx.currentTime; osc.type = 'sine'; 
+osc.frequency.setValueAtTime(660, now); osc.frequency.exponentialRampToValueAtTime(330, now + 0.08); gain.gain.setValueAtTime(0.12, now); 
+gain.gain.exponentialRampToValueAtTime(0.001, now + 0.08); osc.connect(gain); gain.connect(this.sfxGain); osc.start(now); osc.stop(now + 0.08); },
+  playGood() { if (!this.ctx || this.muted) return; const now = this.ctx.currentTime; [440, 554, 659].forEach((f, i) => { const osc = this.ctx.createOscillator(), gain = 
+this.ctx.createGain(); osc.type = 'sine'; osc.frequency.value = f; gain.gain.setValueAtTime(0, now + i * 0.06); gain.gain.linearRampToValueAtTime(0.12, now + i * 0.06 + 
+0.02); gain.gain.exponentialRampToValueAtTime(0.001, now + i * 0.06 + 0.1); osc.connect(gain); gain.connect(this.sfxGain); osc.start(now + i * 0.06); osc.stop(now + i * 
+0.06 + 0.1); }); },
+  playBad() { if (!this.ctx || this.muted) return; const now = this.ctx.currentTime; [200, 180].forEach((f, i) => { const osc = this.ctx.createOscillator(), gain = 
+this.ctx.createGain(); osc.type = 'sawtooth'; osc.frequency.value = f; gain.gain.setValueAtTime(0.1, now + i * 0.12); gain.gain.exponentialRampToValueAtTime(0.001, now + i 
+* 0.12 + 0.15); osc.connect(gain); gain.connect(this.sfxGain); osc.start(now + i * 0.12); osc.stop(now + i * 0.12 + 0.15); }); },
+  playDoor() { if (!this.ctx || this.muted) return; const osc = this.ctx.createOscillator(), gain = this.ctx.createGain(), now = this.ctx.currentTime; osc.type = 
+'sawtooth'; osc.frequency.setValueAtTime(120, now); osc.frequency.exponentialRampToValueAtTime(60, now + 0.12); gain.gain.setValueAtTime(0.08, now); 
+gain.gain.exponentialRampToValueAtTime(0.001, now + 0.12); osc.connect(gain); gain.connect(this.sfxGain); osc.start(now); osc.stop(now + 0.12); },
+  playTalk(pitch = 1) { if (!this.ctx || this.muted) return; const now = this.ctx.currentTime, baseFreq = 160 + Math.random() * 100; const osc = 
+this.ctx.createOscillator(), gain = this.ctx.createGain(), filter = this.ctx.createBiquadFilter(); osc.type = 'square'; osc.frequency.setValueAtTime(baseFreq * pitch, now); 
+osc.frequency.setValueAtTime(baseFreq * pitch * 1.1, now + 0.02); filter.type = 'lowpass'; filter.frequency.value = 1000; gain.gain.setValueAtTime(0.1, now); 
+gain.gain.exponentialRampToValueAtTime(0.001, now + 0.06); osc.connect(filter); filter.connect(gain); gain.connect(this.sfxGain); osc.start(now); osc.stop(now + 0.06); }
+};
+
+const PAL = {
+  floor1: '#2d2d3a', floor2: '#252532', floorWood1: '#4a3c2e', floorWood2: '#3d3226',
+  wall: '#1a1a22', wallLight: '#2a2a35', tableTop: '#5c4a3a', tableLeg: '#3a2e24',
+  metalLight: '#7a8090', metalMid: '#5a6070', metalDark: '#3a4050',
+  equipGreen: '#00aa66', equipRed: '#cc3344', equipBlue: '#3366cc', equipYellow: '#ccaa22',
+  skin1: '#f5d0c0', skin2: '#e5c0b0', skin3: '#c5a090', skin4: '#8b6050', skin5: '#5a3a2a',
+  hairBlond: '#d4a857', hairBrown: '#4a3728', hairBlack: '#1a1a1a', hairRed: '#8b3a2a',
+  hairPurple: '#6a3a7a', hairBlue: '#3a5a8a', hairGrey: '#7a7a7a', hairGreen: '#3a6a4a',
+  red: '#cc3344', green: '#22aa55', blue: '#3366aa', purple: '#7744aa',
+  orange: '#dd7722', yellow: '#ddaa22', pink: '#dd6699', teal: '#22aaaa', grey: '#666677',
+  doorFrame: '#5a4a3a', doorWood: '#7a6a5a', doorHandle: '#ccaa44', windowGlass: '#4a6a8a',
+};
+
+const Game = {
+  canvas: null, ctx: null, width: 0, height: 0, scale: 2, running: false, paused: false, time: 0,
+  worldW: 700, worldH: 450, camX: 0, camY: 0,
+  door: { x: 340, y: 30, w: 40, h: 20, open: false, timer: 0 },
+  player: { x: 360, y: 120, speed: 2, dir: 'down', frame: 0, frameTimer: 0, moving: false, stepTimer: 0, skinTone: 'skin2', hairColor: 'hairBrown', shirtColor: 'teal' },
+  vibe: 70, stats: { trust: 50, energy: 100 }, keys: {}, currentInteraction: null,
+  dialogueActive: false, currentDialogue: null, typewriterIndex: 0, typewriterText: '', typewriterPitch: 1,
+  activityLog: [], npcs: [],
+
+  npcTemplates: [
+    { type: 'member', name: 'ALEX', title: 'Founder', skinTone: 'skin1', hairColor: 'hairBlack', shirtColor: 'grey', pitch: 0.8, morale: 60, burnout: 40,
+      dialogues: { default: [{ text: "*rubbing temples* Another day of fixing what others break. Someone's gotta keep this place running." }, { text: "You know I started 
+this with $200? Eight years later...", choices: [{ text: "You've built something amazing.", id: 'praise', type: 'good' }, { text: "Maybe you need a break?", id: 'break', 
+type: 'good' }, { text: "Sounds exhausting.", id: 'dismiss', type: 'bad' }] }], praise: [{ text: "*small smile* Thanks. Sometimes I forget why I do this. Then a kid sees 
+the laser cutter...", effect: { morale: 15, burnout: -10, vibe: 5 } }], break: [{ text: "A break? Ha! Last time three machines broke. But... maybe you're right.", effect: { 
+morale: 10, burnout: -20 } }], dismiss: [{ text: "*sighs* Yeah. It is. Thanks for the reminder.", effect: { morale: -10, burnout: 10, vibe: -5 } }] } },
+    { type: 'member', name: 'MARCUS', title: 'Tool Guardian', skinTone: 'skin4', hairColor: 'hairBlack', shirtColor: 'orange', pitch: 0.7, morale: 70, burnout: 25,
+      dialogues: { default: [{ text: "*inspecting equipment* These machines cost thousands. Treat them like they're yours." }, { text: "I'm not gatekeeping, I'm protecting 
+our investment.", choices: [{ text: "Safety matters. Thank you.", id: 'agree', type: 'good' }, { text: "Maybe ease up a little?", id: 'ease' }, { text: "You're scaring new 
+people.", id: 'accuse', type: 'bad' }] }], agree: [{ text: "Finally! Come by Wednesday, I'll certify you personally.", effect: { morale: 15, trust: 10 } }], ease: [{ text: 
+"*pauses* Maybe. I've seen too many close calls. I'll try to be welcoming.", effect: { morale: 5, vibe: 5 } }], accuse: [{ text: "*defensive* I'm trying to keep us open! 
+But fine, whatever.", effect: { morale: -20, burnout: 15, vibe: -5 } }] } },
+    { type: 'member', name: 'KAI', title: 'Community Builder', skinTone: 'skin3', hairColor: 'hairBlond', shirtColor: 'pink', pitch: 1.2, morale: 75, burnout: 30,
+      dialogues: { default: [{ text: "*on the couch* This couch has heard more confessions than a priest, friend." }, { text: "I write the newsletter, mediate conflicts... 
+the invisible work.", choices: [{ text: "That work matters so much.", id: 'validate', type: 'good' }, { text: "How do you handle conflicts?", id: 'ask', type: 'good' }, { 
+text: "Sounds like drama.", id: 'dismiss', type: 'bad' }] }], validate: [{ text: "*genuine smile* Thank you. Sometimes I wonder if anyone notices.", effect: { morale: 20, 
+burnout: -15, vibe: 10 } }], ask: [{ text: "Listen separately, find the real need, help them see each other as humans.", effect: { morale: 10, trust: 15 } }], dismiss: [{ 
+text: "*hurt* It's community building. Without it, this place falls apart.", effect: { morale: -25, burnout: 20, vibe: -10 } }] } },
+    { type: 'member', name: 'RIVER', title: 'Night Owl', skinTone: 'skin2', hairColor: 'hairPurple', shirtColor: 'purple', pitch: 1.1, morale: 65, burnout: 50,
+      dialogues: { default: [{ text: "*surrounded by wires* I'm translating plant bioelectricity into sound. The cactus is angry?" }, { text: "What day is it? I've been 
+here since... I don't remember.", choices: [{ text: "That's incredible work!", id: 'encourage', type: 'good' }, { text: "When did you last sleep?", id: 'concern', type: 
+'good' }, { text: "That sounds made up.", id: 'doubt', type: 'bad' }] }], encourage: [{ text: "*eyes light up* You think so?! Want to hear the fern? It sounds like whale 
+songs!", effect: { morale: 20, vibe: 5 } }], concern: [{ text: "*counts fingers* ...Tuesday? The couch is comfy. Maybe I should rest.", effect: { morale: 5, burnout: -15 } 
+}], doubt: [{ text: "*deflates* Oh. I thought... nevermind. Back to work.", effect: { morale: -25, burnout: 15, vibe: -5 } }] } },
+
+    { type: 'newcomer', name: 'JORDAN', skinTone: 'skin3', hairColor: 'hairBlond', shirtColor: 'teal', pitch: 1.3, curiosity: 60,
+      dialogues: { default: [{ text: "Oh! Hi! I'm just looking around? This place is amazing but intimidating?" }, { text: "Someone asked if I knew CNC and I panicked and 
+said yes.", choices: [{ text: "Welcome! Let me show you around.", id: 'welcome', type: 'good' }, { text: "So what brings you here?", id: 'interest', type: 'good' }, { text: 
+"You'll figure it out.", id: 'dismiss', type: 'bad' }] }], welcome: [{ text: "*relaxes* Really? Everyone seems so expert.", effect: { curiosity: 25, vibe: 5 }, next: 'dues' 
+}], interest: [{ text: "My grandmother fixed radios. I found her soldering iron. I want to learn.", effect: { curiosity: 20 }, next: 'dues' }], dismiss: [{ text: "Oh... 
+maybe this isn't for beginners...", effect: { curiosity: -30, vibe: -5 } }], dues: [{ text: "So... how much does it cost?", choices: [{ text: "Monthly donations start at 
+$25. Community first.", id: 'good_pitch', type: 'good' }, { text: "$50/month gets storage and card access eligibility.", id: 'mid_pitch' }, { text: "It's $100 a month for 
+full membership.", id: 'bad_pitch', type: 'bad' }] }], good_pitch: [{ text: "Donations, not fees? I love that! $25 is doable. Where do I sign up?!", effect: { curiosity: 
+30, vibe: 5, trust: 10 }, join: true }], mid_pitch: [{ text: "That's reasonable. What's card access?", choices: [{ text: "It's voted on by members. Trust-based.", id: 
+'explain_vote', type: 'good' }, { text: "You get a key to come anytime.", id: 'explain_simple' }] }], bad_pitch: [{ text: "$100?! That's... a lot. I'll think about it...", 
+effect: { curiosity: -40, vibe: -5 } }], explain_vote: [{ text: "A community that trusts each other? That's beautiful. I'm in.", effect: { curiosity: 25, trust: 10 }, join: 
+true }], explain_simple: [{ text: "Cool. I'll think about it.", effect: { curiosity: 5 } }] } },
+    { type: 'newcomer', name: 'TAYLOR', skinTone: 'skin5', hairColor: 'hairBrown', shirtColor: 'blue', pitch: 0.95, curiosity: 50,
+      dialogues: { default: [{ text: "*looking at printers* These are Prusas, right? I've only used Enders." }, { text: "I want to print keyboard cases. Is that cool 
+here?", choices: [{ text: "Absolutely! That's what this space is for.", id: 'encourage', type: 'good' }, { text: "What experience do you have?", id: 'quiz' }, { text: "We 
+mostly do serious projects.", id: 'dismiss', type: 'bad' }] }], encourage: [{ text: "Yes! I've got so many designs ready.", effect: { curiosity: 25, vibe: 5 }, next: 'dues' 
+}], quiz: [{ text: "Three years printing, basic CAD. Not a total noob.", effect: { curiosity: 5 }, next: 'dues' }], dismiss: [{ text: "'Serious projects'? It's a keyboard, 
+not a toy. Whatever.", effect: { curiosity: -35, vibe: -5 } }], dues: [{ text: "What's the deal for joining?", choices: [{ text: "Donations start at $25. 
+Community-supported.", id: 'good_pitch', type: 'good' }, { text: "Depends what you need. Budget?", id: 'flex_pitch', type: 'good' }, { text: "$100/month for full access.", 
+id: 'bad_pitch', type: 'bad' }] }], good_pitch: [{ text: "Donation-based? Cool. $25 to start.", effect: { curiosity: 25, vibe: 5 }, join: true }], flex_pitch: [{ text: "I 
+can do $50 for storage.", effect: { curiosity: 20, trust: 5 }, join: true }], bad_pitch: [{ text: "More than downtown makerspace. Hard pass.", effect: { curiosity: -50 } }] 
+} },
+    { type: 'newcomer', name: 'AVERY', skinTone: 'skin2', hairColor: 'hairGreen', shirtColor: 'yellow', pitch: 1.15, curiosity: 70,
+      dialogues: { default: [{ text: "*bouncing* Is that a CNC? And a laser cutter?! INCREDIBLE!" }, { text: "I've watched maker YouTube for years. Ready to DO stuff!", 
+choices: [{ text: "That energy is what we need!", id: 'match', type: 'good' }, { text: "What do you want to make?", id: 'focus', type: 'good' }, { text: "YouTube isn't 
+experience.", id: 'dismiss', type: 'bad' }] }], match: [{ text: "Really?! Some spaces are so serious.", effect: { curiosity: 30, vibe: 10 }, next: 'dues' }], focus: [{ 
+text: "A robot arm! Or a drone! Or smart garden! ...lots of ideas.", effect: { curiosity: 20 }, next: 'dues' }], dismiss: [{ text: "*deflates* I thought videos counted for 
+something...", effect: { curiosity: -30, vibe: -5 } }], dues: [{ text: "I NEED to join. How much?", choices: [{ text: "$25/month donation. Community-supported.", id: 
+'good_pitch', type: 'good' }, { text: "$50 gets you project storage.", id: 'mid_pitch', type: 'good' }, { text: "Full membership is $100.", id: 'bad_pitch', type: 'bad' }] 
+}], good_pitch: [{ text: "Community-supported! I love that! Count me in!", effect: { curiosity: 30, vibe: 10, trust: 10 }, join: true }], mid_pitch: [{ text: "Storage is 
+amazing. $50 it is!", effect: { curiosity: 25, vibe: 5 }, join: true }], bad_pitch: [{ text: "Steep for a student. Maybe after graduation...", effect: { curiosity: -40 } }] 
+} },
+
+    { type: 'toxic', name: 'DEREK', skinTone: 'skin1', hairColor: 'hairBrown', shirtColor: 'red', pitch: 0.75, toxicity: 70,
+      dialogues: { default: [{ text: "*loudly* This laser cutter is MINE for three hours. I reserved it." }, { text: "Some of us have REAL projects. Not toys.", choices: [{ 
+text: "Equipment is shared. Let's find a compromise.", id: 'defuse', type: 'good' }, { text: "Did you actually reserve it?", id: 'question' }, { text: "Don't talk to people 
+that way.", id: 'confront', type: 'bad' }] }], defuse: [{ text: "*surprised* I... fine. I guess I can share.", effect: { toxicity: -15, vibe: 5 } }], question: [{ text: 
+"...The calendar might've been unclear. I'll check.", effect: { toxicity: -5 } }], confront: [{ text: "Who made YOU the boss? I pay my dues!", effect: { toxicity: 20, vibe: 
+-15 } }] } },
+    { type: 'toxic', name: 'BLAKE', skinTone: 'skin3', hairColor: 'hairBlack', shirtColor: 'grey', pitch: 0.9, toxicity: 60,
+      dialogues: { default: [{ text: "*to someone* No, no, you're doing it wrong. Let me show the RIGHT way." }, { text: "I've done electronics 20 years. I know more than 
+tutorials.", choices: [{ text: "Experience is great! Maybe mentor more gently?", id: 'redirect', type: 'good' }, { text: "Everyone has different approaches.", id: 'neutral' 
+}, { text: "You're driving people away.", id: 'confront', type: 'bad' }] }], redirect: [{ text: "*pauses* Mentor? Maybe I come on too strong.", effect: { toxicity: -25, 
+vibe: 10 } }], neutral: [{ text: "*huffs* Fine, I'll let them fail.", effect: { toxicity: -5 } }], confront: [{ text: "I'M driving people away?! I'm HELPING!", effect: { 
+toxicity: 25, vibe: -20 } }] } },
+    { type: 'toxic', name: 'QUINN', skinTone: 'skin2', hairColor: 'hairRed', shirtColor: 'purple', pitch: 1.0, toxicity: 50,
+      dialogues: { default: [{ text: "*sighing loudly* Dust collection is broken AGAIN. Falling apart." }, { text: "I pay dues. Why isn't stuff fixed faster?", choices: [{ 
+text: "Want to help fix it? We're all volunteers.", id: 'invite', type: 'good' }, { text: "Maintenance takes time.", id: 'explain' }, { text: "Then find another space.", 
+id: 'dismiss', type: 'bad' }] }], invite: [{ text: "*taken aback* Help? I... guess I could.", effect: { toxicity: -30, vibe: 10 }, convert: true }], explain: [{ text: "I 
+know. I get frustrated. I'll be patient.", effect: { toxicity: -10, vibe: 5 } }], dismiss: [{ text: "Maybe I WILL! At least they maintain equipment!", effect: { toxicity: 
+30, vibe: -15 } }] } },
+  ],
+
+  workstations: [
+    { id: 'bench1', x: 70, y: 135 }, { id: 'bench2', x: 110, y: 135 },
+    { id: 'printer1', x: 570, y: 130 }, { id: 'printer2', x: 610, y: 130 },
+    { id: 'laser', x: 590, y: 305 }, { id: 'computer', x: 640, y: 275 },
+    { id: 'table1', x: 260, y: 220 }, { id: 'table2', x: 360, y: 220 },
+    { id: 'table3', x: 260, y: 300 }, { id: 'table4', x: 360, y: 300 },
+    { id: 'couch', x: 75, y: 320 }, { id: 'entrance', x: 360, y: 90 },
+  ],
+
+  colliders: [
+    { x: 0, y: 0, w: 340, h: 45 }, { x: 380, y: 0, w: 320, h: 45 },
+    { x: 0, y: 0, w: 15, h: 450 }, { x: 685, y: 0, w: 15, h: 450 }, { x: 0, y: 435, w: 700, h: 15 },
+    { x: 220, y: 180, w: 80, h: 35 }, { x: 320, y: 180, w: 80, h: 35 },
+    { x: 220, y: 260, w: 80, h: 35 }, { x: 320, y: 260, w: 80, h: 35 },
+    { x: 30, y: 100, w: 120, h: 25 }, { x: 550, y: 100, w: 110, h: 25 }, { x: 550, y: 80, w: 110, h: 20 },
+    { x: 560, y: 260, w: 65, h: 40 }, { x: 550, y: 320, w: 110, h: 25 },
+    { x: 35, y: 280, w: 80, h: 35 }, { x: 40, y: 330, w: 45, h: 25 }, { x: 30, y: 250, w: 60, h: 18 }, { x: 130, y: 340, w: 28, h: 38 },
+  ],
+
+  zones: [
+    { id: 'entrance', name: 'ENTRANCE', x: 300, y: 50, w: 120, h: 60 },
+    { id: 'main', name: 'MAIN FLOOR', x: 200, y: 140, w: 300, h: 180 },
+    { id: 'electronics', name: 'ELECTRONICS', x: 20, y: 80, w: 160, h: 120 },
+    { id: 'printers', name: '3D PRINTING', x: 540, y: 80, w: 140, h: 120 },
+    { id: 'laser', name: 'LASER BAY', x: 540, y: 240, w: 140, h: 140 },
+    { id: 'lounge', name: 'LOUNGE', x: 20, y: 240, w: 160, h: 160 },
+  ],
+
+  init() {
+    this.canvas = document.getElementById('game-canvas'); this.ctx = this.canvas.getContext('2d');
+    this.resize(); window.addEventListener('resize', () => this.resize());
+    this.setupInput(); this.setupUI(); this.spawnInitialNPCs();
+  },
+
+  spawnInitialNPCs() {
+    const members = this.npcTemplates.filter(t => t.type === 'member');
+    for (let i = 0; i < 4 && i < members.length; i++) this.spawnNPC(members[i]);
+    const newcomers = this.npcTemplates.filter(t => t.type === 'newcomer');
+    if (newcomers.length) this.spawnNPC(newcomers[0], true);
+  },
+
+  spawnNPC(template, entering = false) {
+    const station = entering ? this.workstations.find(s => s.id === 'entrance') : this.workstations[Math.floor(Math.random() * (this.workstations.length - 1))];
+    const npc = { ...template, id: template.name + '_' + Date.now(), x: entering ? 360 : station.x, y: entering ? 65 : station.y, targetX: entering ? 360 : station.x, 
+targetY: entering ? 110 : station.y, state: entering ? 'entering' : 'idle', stateTimer: 0, talked: false, dialogueState: 'default', dialogueIndex: 0, frame: 0, frameTimer: 
+0, dir: 'down', morale: template.morale || 50, burnout: template.burnout || 0, curiosity: template.curiosity || 50, toxicity: template.toxicity || 0 };
+    this.npcs.push(npc);
+    if (entering) { this.logActivity(`${npc.name} walked in`); Audio.playDoor(); this.door.open = true; this.door.timer = 60; }
+  },
+
+  removeNPC(npc, reason = 'left') {
+    const idx = this.npcs.indexOf(npc);
+    if (idx > -1) {
+      this.npcs.splice(idx, 1);
+      const messages = { left: `${npc.name} left`, quit: `${npc.name} QUIT!`, joined: `${npc.name} joined!`, scared: `${npc.name} left (not interested)` };
+      this.logActivity(messages[reason] || `${npc.name} left`);
+      if (reason === 'quit') { this.vibe -= 15; Audio.playBad(); } else if (reason === 'joined') { this.vibe += 10; Audio.playGood(); } else if (reason === 'scared') { 
+this.vibe -= 5; }
+    }
+  },
+
+  logActivity(msg) {
+    this.activityLog.unshift({ msg, time: this.time });
+    if (this.activityLog.length > 4) this.activityLog.pop();
+    document.getElementById('activity-log').innerHTML = this.activityLog.map(a => `• ${a.msg}`).join('<br>');
+  },
+
+  resize() {
+    const container = document.getElementById('game-world'), rect = container.getBoundingClientRect();
+    if (rect.width === 0) return;
+    // Calculate scale to fit world in container
+    const scaleX = rect.width / this.worldW, scaleY = rect.height / this.worldH;
+    this.scale = Math.max(1, Math.floor(Math.min(scaleX, scaleY)));
+    // Viewport size - don't exceed world size
+    this.width = Math.min(this.worldW, Math.floor(rect.width / this.scale));
+    this.height = Math.min(this.worldH, Math.floor(rect.height / this.scale));
+    this.canvas.width = this.width;
+    this.canvas.height = this.height;
+    // Scale up for display
+    this.canvas.style.width = this.width * this.scale + 'px';
+    this.canvas.style.height = this.height * this.scale + 'px';
+  },
+
+  setupInput() {
+    document.addEventListener('keydown', (e) => {
+      if (this.dialogueActive) { if (['Space', 'Enter', 'KeyE'].includes(e.code)) { e.preventDefault(); this.advanceDialogue(); } return; }
+      this.keys[e.code] = true;
+      if (['Space', 'KeyE'].includes(e.code)) { e.preventDefault(); this.interact(); }
+      if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.code)) e.preventDefault();
+    });
+    document.addEventListener('keyup', (e) => { this.keys[e.code] = false; });
+    
+    // Joystick touch handling
+    const joystickBase = document.getElementById('joystick-base');
+    const joystickKnob = document.getElementById('joystick-knob');
+    let joystickActive = false;
+    let joystickCenter = { x: 0, y: 0 };
+    const maxDist = 35;
+    
+    const updateJoystick = (touchX, touchY) => {
+      const dx = touchX - joystickCenter.x;
+      const dy = touchY - joystickCenter.y;
+      const dist = Math.min(Math.sqrt(dx * dx + dy * dy), maxDist);
+      const angle = Math.atan2(dy, dx);
+      const knobX = Math.cos(angle) * dist;
+      const knobY = Math.sin(angle) * dist;
+      
+      joystickKnob.style.transform = `translate(calc(-50% + ${knobX}px), calc(-50% + ${knobY}px))`;
+      
+      // Update movement keys based on joystick position
+      const threshold = 15;
+      this.keys['ArrowUp'] = dy < -threshold;
+      this.keys['ArrowDown'] = dy > threshold;
+      this.keys['ArrowLeft'] = dx < -threshold;
+      this.keys['ArrowRight'] = dx > threshold;
+    };
+    
+    const resetJoystick = () => {
+      joystickActive = false;
+      joystickKnob.style.transform = 'translate(-50%, -50%)';
+      this.keys['ArrowUp'] = false;
+      this.keys['ArrowDown'] = false;
+      this.keys['ArrowLeft'] = false;
+      this.keys['ArrowRight'] = false;
+    };
+    
+    joystickBase.addEventListener('touchstart', (e) => {
+      e.preventDefault();
+      joystickActive = true;
+      const rect = joystickBase.getBoundingClientRect();
+      joystickCenter = { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 };
+      const touch = e.touches[0];
+      updateJoystick(touch.clientX, touch.clientY);
+    }, { passive: false });
+    
+    document.addEventListener('touchmove', (e) => {
+      if (!joystickActive) return;
+      e.preventDefault();
+      const touch = e.touches[0];
+      updateJoystick(touch.clientX, touch.clientY);
+    }, { passive: false });
+    
+    document.addEventListener('touchend', (e) => {
+      if (joystickActive) resetJoystick();
+    });
+    document.addEventListener('touchcancel', (e) => {
+      if (joystickActive) resetJoystick();
+    });
+
+    document.getElementById('action-btn').addEventListener('click', () => { if (this.dialogueActive) this.advanceDialogue(); else this.interact(); });
+  },
+
+  setupUI() {
+    document.getElementById('start-btn').addEventListener('click', () => {
+      Audio.init(); Audio.resume(); Audio.startMusic();
+      document.getElementById('title-screen').classList.add('hidden');
+      document.getElementById('game-world').classList.add('active');
+      setTimeout(() => { this.resize(); this.running = true; this.gameLoop(); }, 100);
+    });
+    document.getElementById('audio-btn').addEventListener('click', () => { const muted = Audio.toggleMute(); document.getElementById('audio-btn').classList.toggle('muted', 
+muted); document.getElementById('audio-btn').textContent = muted ? '🔇' : '♪'; });
+    document.getElementById('help-btn').addEventListener('click', () => { document.getElementById('help-overlay').classList.add('active'); this.paused = true; });
+    document.getElementById('help-close').addEventListener('click', () => { document.getElementById('help-overlay').classList.remove('active'); this.paused = false; });
+    document.getElementById('dialogue-choices').addEventListener('click', (e) => { if (e.target.classList.contains('dialogue-choice')) { Audio.playBlip(); 
+this.handleChoice(e.target.dataset.choice); } });
+    // Tap dialogue box to continue (but not on choices)
+    document.getElementById('dialogue-box').addEventListener('click', (e) => {
+      if (!e.target.classList.contains('dialogue-choice') && this.dialogueActive) {
+        this.advanceDialogue();
+      }
+    });
+  },
+
+  gameLoop() { if (!this.running) return; this.time++; if (!this.paused && !this.dialogueActive) this.update(); this.updateTypewriter(); this.render(); 
+requestAnimationFrame(() => this.gameLoop()); },
+
+  update() { this.updatePlayer(); this.updateNPCs(); this.updateDoor(); this.updateVibe(); this.maybeSpawnNPC(); this.updateZone(); this.checkInteractions(); 
+this.updateUI(); },
+
+  updatePlayer() {
+    const p = this.player; let dx = 0, dy = 0;
+    if (this.keys['KeyW'] || this.keys['ArrowUp']) dy = -1;
+    if (this.keys['KeyS'] || this.keys['ArrowDown']) dy = 1;
+    if (this.keys['KeyA'] || this.keys['ArrowLeft']) dx = -1;
+    if (this.keys['KeyD'] || this.keys['ArrowRight']) dx = 1;
+    if (dx && dy) { dx *= 0.707; dy *= 0.707; } dx *= p.speed; dy *= p.speed;
+    const newX = p.x + dx, newY = p.y + dy; let canMoveX = true, canMoveY = true;
+    const pRectX = { x: newX - 5, y: p.y - 3, w: 10, h: 6 }, pRectY = { x: p.x - 5, y: newY - 3, w: 10, h: 6 };
+    for (const c of this.colliders) { if (this.rectOverlap(pRectX, c)) canMoveX = false; if (this.rectOverlap(pRectY, c)) canMoveY = false; }
+    if (canMoveX) p.x = newX; if (canMoveY) p.y = newY; p.moving = dx !== 0 || dy !== 0;
+    if (p.moving) { p.frameTimer++; if (p.frameTimer > 6) { p.frame = (p.frame + 1) % 4; p.frameTimer = 0; } p.stepTimer++; if (p.stepTimer > 14) { Audio.playStep(); 
+p.stepTimer = 0; } if (Math.abs(dx) > Math.abs(dy)) p.dir = dx > 0 ? 'right' : 'left'; else p.dir = dy > 0 ? 'down' : 'up'; } else { p.frame = 0; p.stepTimer = 0; }
+    this.camX = Math.max(0, Math.min(this.worldW - this.width, p.x - this.width / 2)); this.camY = Math.max(0, Math.min(this.worldH - this.height, p.y - this.height / 2));
+  },
+
+  updateNPCs() {
+    for (const npc of [...this.npcs]) {
+      npc.stateTimer++;
+      if (npc.type === 'member') { if (npc.burnout >= 100) { npc.state = 'leaving'; this.logActivity(`${npc.name} burned out!`); } if (npc.morale <= 0) { npc.state = 
+'leaving'; npc.quitting = true; } if (this.time % 300 === 0) npc.burnout += 1; if (this.time % 200 === 0) { if (this.vibe < 40) npc.morale -= 2; else if (this.vibe > 70) 
+npc.morale += 1; } }
+      if (npc.type === 'newcomer') { if (npc.curiosity <= 0) { npc.state = 'leaving'; npc.scared = true; } if (this.time % 400 === 0 && !npc.talked) npc.curiosity -= 5; }
+      if (npc.type === 'toxic') { if (this.time % 180 === 0 && npc.toxicity > 50) this.vibe -= 2; if (npc.toxicity >= 100) { npc.state = 'leaving'; 
+this.logActivity(`${npc.name} stormed out!`); this.vibe -= 10; } if (npc.converted) { npc.type = 'member'; npc.morale = 60; npc.burnout = 10; this.logActivity(`${npc.name} 
+reformed!`); this.vibe += 15; } }
+      switch (npc.state) {
+        case 'entering': this.moveNPCToward(npc, npc.targetX, npc.targetY); if (Math.hypot(npc.x - npc.targetX, npc.y - npc.targetY) < 5) { npc.state = 'idle'; 
+npc.stateTimer = 0; } break;
+        case 'idle': if (npc.stateTimer > 150 + Math.random() * 200) { const station = this.workstations[Math.floor(Math.random() * (this.workstations.length - 1))]; 
+npc.targetX = station.x + (Math.random() - 0.5) * 20; npc.targetY = station.y + (Math.random() - 0.5) * 20; npc.state = 'walking'; } break;
+        case 'walking': this.moveNPCToward(npc, npc.targetX, npc.targetY); if (Math.hypot(npc.x - npc.targetX, npc.y - npc.targetY) < 5) { npc.state = 'working'; 
+npc.stateTimer = 0; } break;
+        case 'working': if (npc.stateTimer > 200 + Math.random() * 300) { npc.state = 'idle'; npc.stateTimer = 0; } break;
+        case 'leaving': this.moveNPCToward(npc, 360, 50); if (npc.y < 55) { this.removeNPC(npc, npc.quitting ? 'quit' : npc.scared ? 'scared' : npc.joined ? 'joined' : 
+'left'); Audio.playDoor(); this.door.open = true; this.door.timer = 60; } break;
+      }
+      const moving = ['walking', 'entering', 'leaving'].includes(npc.state);
+      if (moving) { npc.frameTimer++; if (npc.frameTimer > 8) { npc.frame = (npc.frame + 1) % 4; npc.frameTimer = 0; } } else npc.frame = 0;
+    }
+  },
+
+  moveNPCToward(npc, tx, ty) { const dx = tx - npc.x, dy = ty - npc.y, dist = Math.hypot(dx, dy); if (dist < 1) return; const speed = 0.7; npc.x += (dx / dist) * speed; 
+npc.y += (dy / dist) * speed; if (Math.abs(dx) > Math.abs(dy)) npc.dir = dx > 0 ? 'right' : 'left'; else npc.dir = dy > 0 ? 'down' : 'up'; },
+  updateDoor() { if (this.door.timer > 0) { this.door.timer--; if (this.door.timer === 0) this.door.open = false; } },
+  updateVibe() { this.vibe = Math.max(0, Math.min(100, this.vibe)); const toxicCount = this.npcs.filter(n => n.type === 'toxic' && n.toxicity > 40).length; if (toxicCount 
+=== 0 && this.time % 300 === 0 && this.vibe < 70) this.vibe += 1; },
+  maybeSpawnNPC() {
+    if (this.time % 500 !== 0 || this.npcs.length >= 8) return;
+    const roll = Math.random(), newcomerCount = this.npcs.filter(n => n.type === 'newcomer').length, toxicCount = this.npcs.filter(n => n.type === 'toxic').length;
+    if (roll < 0.4 && newcomerCount < 2) { const avail = this.npcTemplates.filter(t => t.type === 'newcomer' && !this.npcs.find(n => n.name === t.name)); if (avail.length) 
+this.spawnNPC(avail[Math.floor(Math.random() * avail.length)], true); }
+    else if (roll < 0.5 + (100 - this.vibe) / 200 && toxicCount < 2) { const avail = this.npcTemplates.filter(t => t.type === 'toxic' && !this.npcs.find(n => n.name === 
+t.name)); if (avail.length) this.spawnNPC(avail[Math.floor(Math.random() * avail.length)], true); }
+    else { const avail = this.npcTemplates.filter(t => t.type === 'member' && !this.npcs.find(n => n.name === t.name)); if (avail.length && this.npcs.filter(n => n.type === 
+'member').length < 5) this.spawnNPC(avail[Math.floor(Math.random() * avail.length)], true); }
+  },
+
+  rectOverlap(a, b) { return a.x < b.x + b.w && a.x + a.w > b.x && a.y < b.y + b.h && a.y + a.h > b.y; },
+  updateZone() { let zone = 'MAIN FLOOR'; for (const z of this.zones) { if (this.player.x >= z.x && this.player.x <= z.x + z.w && this.player.y >= z.y && this.player.y <= 
+z.y + z.h) { zone = z.name; break; } } document.getElementById('location-bar').textContent = zone; },
+  checkInteractions() {
+    this.currentInteraction = null; const range = 35, p = this.player;
+    for (const npc of this.npcs) { if (npc.state === 'leaving') continue; if (Math.hypot(p.x - npc.x, p.y - npc.y) < range) { this.currentInteraction = { type: 'npc', data: 
+npc }; break; } }
+    const prompt = document.getElementById('interact-prompt');
+    if (this.currentInteraction) { prompt.textContent = `[E] Talk to ${this.currentInteraction.data.name}`; prompt.classList.add('visible'); } else { 
+prompt.classList.remove('visible'); }
+  },
+
+  interact() { if (!this.currentInteraction) return; Audio.playBlip(); this.startDialogue(this.currentInteraction.data); },
+
+  startDialogue(npc) { this.dialogueActive = true; this.currentDialogue = { npc, state: npc.dialogueState || 'default', index: 0 }; 
+document.getElementById('dialogue-box').classList.add('active'); this.showDialogueLine(); },
+
+  showDialogueLine() {
+    const d = this.currentDialogue, npc = d.npc, dialogues = npc.dialogues[d.state];
+    if (!dialogues || d.index >= dialogues.length) { this.endDialogue(); return; }
+    const line = dialogues[d.index];
+    const typeLabel = npc.type === 'newcomer' ? ' [Newcomer]' : npc.type === 'toxic' ? ' [!!!]' : npc.title ? ` [${npc.title}]` : '';
+    document.getElementById('dialogue-speaker').textContent = npc.name + typeLabel;
+    const moodEl = document.getElementById('dialogue-mood');
+    if (npc.type === 'member') { moodEl.textContent = (npc.morale > 70 ? '😊' : npc.morale > 40 ? '😐' : '😟') + (npc.burnout > 60 ? '🔥' : ''); moodEl.style.background = 
+npc.morale > 70 ? '#225522' : npc.morale > 40 ? '#555522' : '#552222'; }
+    else if (npc.type === 'newcomer') { moodEl.textContent = npc.curiosity > 60 ? '✨' : npc.curiosity > 30 ? '🤔' : '😕'; moodEl.style.background = '#224455'; }
+    else if (npc.type === 'toxic') { moodEl.textContent = npc.toxicity > 60 ? '😤' : '😒'; moodEl.style.background = '#552222'; }
+    else { moodEl.textContent = ''; moodEl.style.background = 'transparent'; }
+    this.typewriterText = line.text; this.typewriterIndex = 0; this.typewriterPitch = npc.pitch || 1; document.getElementById('dialogue-text').textContent = '';
+    const choicesEl = document.getElementById('dialogue-choices'), continueEl = document.getElementById('dialogue-continue');
+    if (line.choices) { choicesEl.innerHTML = line.choices.map(c => `<button class="dialogue-choice ${c.type || ''}" data-choice="${c.id}">${c.text}</button>`).join(''); 
+choicesEl.style.display = 'flex'; continueEl.style.display = 'none'; }
+    else { choicesEl.style.display = 'none'; continueEl.style.display = 'block'; }
+    if (line.effect) this.applyEffect(line.effect, npc);
+    if (line.join) { npc.joined = true; npc.state = 'leaving'; }
+    if (line.convert) npc.converted = true;
+  },
+
+  updateTypewriter() { if (!this.dialogueActive || this.typewriterIndex >= this.typewriterText.length) return; this.typewriterIndex++; const char = 
+this.typewriterText[this.typewriterIndex - 1]; document.getElementById('dialogue-text').textContent = this.typewriterText.substring(0, this.typewriterIndex); if (char && 
+char !== ' ' && char !== '*' && this.typewriterIndex % 2 === 0) Audio.playTalk(this.typewriterPitch * (0.9 + Math.random() * 0.2)); },
+  handleChoice(choiceId) { const d = this.currentDialogue; d.state = choiceId; d.index = 0; d.npc.dialogueState = choiceId; this.showDialogueLine(); },
+  advanceDialogue() {
+    if (this.typewriterIndex < this.typewriterText.length) { this.typewriterIndex = this.typewriterText.length; document.getElementById('dialogue-text').textContent = 
+this.typewriterText; return; }
+    const d = this.currentDialogue, dialogues = d.npc.dialogues[d.state], line = dialogues?.[d.index];
+    if (line?.next) { d.state = line.next; d.index = 0; this.showDialogueLine(); return; }
+    d.index++; if (!dialogues || d.index >= dialogues.length) this.endDialogue(); else this.showDialogueLine();
+  },
+  endDialogue() { this.dialogueActive = false; if (this.currentDialogue?.npc) this.currentDialogue.npc.talked = true; this.currentDialogue = null; 
+document.getElementById('dialogue-box').classList.remove('active'); },
+
+  applyEffect(eff, npc) {
+    if (eff.morale && npc) npc.morale = Math.max(0, Math.min(100, npc.morale + eff.morale));
+    if (eff.burnout && npc) npc.burnout = Math.max(0, Math.min(100, npc.burnout + eff.burnout));
+    if (eff.curiosity && npc) npc.curiosity = Math.max(0, Math.min(100, npc.curiosity + eff.curiosity));
+    if (eff.toxicity && npc) npc.toxicity = Math.max(0, Math.min(100, npc.toxicity + eff.toxicity));
+    if (eff.trust) this.stats.trust = Math.max(0, Math.min(100, this.stats.trust + eff.trust));
+    if (eff.vibe) this.vibe = Math.max(0, Math.min(100, this.vibe + eff.vibe));
+    const positive = (eff.morale > 0) || (eff.curiosity > 0) || (eff.toxicity < 0) || (eff.vibe > 0) || (eff.trust > 0);
+    const negative = (eff.morale < 0) || (eff.curiosity < 0) || (eff.toxicity > 0) || (eff.vibe < 0);
+    if (positive && !negative) Audio.playGood(); else if (negative && !positive) Audio.playBad();
+  },
+
+  updateUI() {
+    const vibeFill = document.getElementById('vibe-fill'), vibeText = document.getElementById('vibe-text');
+    vibeFill.style.width = this.vibe + '%'; vibeFill.style.background = this.vibe > 60 ? '#00aa66' : this.vibe > 30 ? '#aaaa22' : '#aa4444';
+    vibeText.textContent = this.vibe > 70 ? 'Great!' : this.vibe > 50 ? 'Chill' : this.vibe > 30 ? 'Tense' : 'Toxic';
+    document.getElementById('stat-members').textContent = this.npcs.filter(n => n.type === 'member').length;
+    document.getElementById('stat-trust').textContent = Math.round(this.stats.trust);
+    document.getElementById('stat-energy').textContent = Math.round(this.stats.energy);
+    const trustBar = document.getElementById('trust-bar'); trustBar.style.width = this.stats.trust + '%'; trustBar.className = 'stat-bar-fill ' + (this.stats.trust < 30 ? 
+'low' : this.stats.trust < 60 ? 'med' : '');
+    const energyBar = document.getElementById('energy-bar'); energyBar.style.width = this.stats.energy + '%'; energyBar.className = 'stat-bar-fill ' + (this.stats.energy < 
+30 ? 'low' : this.stats.energy < 60 ? 'med' : '');
+  },
+
+  render() {
+    const ctx = this.ctx; ctx.fillStyle = '#1a1a2e'; ctx.fillRect(0, 0, this.width, this.height);
+    ctx.save(); ctx.translate(-Math.floor(this.camX), -Math.floor(this.camY));
+    this.drawFloor(); this.drawWalls(); this.drawFurniture(); this.drawDoor();
+    const entities = [...this.npcs.map(n => ({ ...n, isNPC: true })), { ...this.player, isPlayer: true }].sort((a, b) => a.y - b.y);
+    for (const e of entities) { if (e.isPlayer) this.drawPlayer(); else if (e.isNPC) this.drawNPC(e); }
+    ctx.restore();
+  },
+
+  drawFloor() { const ctx = this.ctx, ts = 16; for (let y = 0; y < this.worldH; y += ts) { for (let x = 0; x < this.worldW; x += ts) { const inLounge = x >= 20 && x < 180 
+&& y >= 240 && y < 400, alt = ((x / ts) + (y / ts)) % 2 === 0; ctx.fillStyle = inLounge ? (alt ? PAL.floorWood1 : PAL.floorWood2) : (alt ? PAL.floor1 : PAL.floor2); 
+ctx.fillRect(x, y, ts, ts); } } },
+  drawWalls() {
+    const ctx = this.ctx;
+    // Main walls
+    ctx.fillStyle = PAL.wall;
+    ctx.fillRect(0, 0, 340, 45); // Left of door
+    ctx.fillRect(380, 0, this.worldW - 380, 45); // Right of door
+    ctx.fillRect(0, 0, 15, this.worldH); // Left wall
+    ctx.fillRect(this.worldW - 15, 0, 15, this.worldH); // Right wall
+    ctx.fillRect(0, this.worldH - 15, this.worldW, 15); // Bottom wall
+    
+    // Wall trim
+    ctx.fillStyle = PAL.wallLight;
+    ctx.fillRect(15, 45, 325, 3);
+    ctx.fillRect(380, 45, this.worldW - 395, 3);
+    
+    // Windows with frames
+    ctx.fillStyle = PAL.windowGlass;
+    ctx.fillRect(50, 10, 60, 25);
+    ctx.fillRect(150, 10, 60, 25);
+    ctx.fillRect(450, 10, 60, 25);
+    ctx.fillRect(550, 10, 60, 25);
+    
+    // Window frames and crossbars
+    ctx.strokeStyle = '#3a3a4a';
+    ctx.lineWidth = 2;
+    [50, 150, 450, 550].forEach(x => {
+      ctx.strokeRect(x, 10, 60, 25);
+      ctx.beginPath();
+      ctx.moveTo(x + 30, 10);
+      ctx.lineTo(x + 30, 35);
+      ctx.moveTo(x, 22);
+      ctx.lineTo(x + 60, 22);
+      ctx.stroke();
+    });
+    ctx.lineWidth = 1;
+    
+    // Zone divider lines (subtle)
+    ctx.strokeStyle = 'rgba(255,255,255,0.03)';
+    ctx.setLineDash([4, 4]);
+    ctx.strokeRect(20, 75, 160, 130); // Electronics
+    ctx.strokeRect(540, 75, 145, 130); // 3D Printing
+    ctx.strokeRect(540, 235, 145, 150); // Laser
+    ctx.strokeRect(20, 235, 160, 170); // Lounge
+    ctx.setLineDash([]);
+    
+    // Posters on walls
+    ctx.fillStyle = '#cc3344';
+    ctx.fillRect(200, 52, 25, 32);
+    ctx.fillStyle = '#3366aa';
+    ctx.fillRect(240, 52, 25, 32);
+    ctx.fillStyle = '#22aa55';
+    ctx.fillRect(500, 52, 25, 32);
+    // Poster details
+    ctx.fillStyle = 'rgba(255,255,255,0.3)';
+    ctx.fillRect(203, 55, 19, 6);
+    ctx.fillRect(243, 55, 19, 6);
+    ctx.fillRect(503, 55, 19, 6);
+  },
+  drawDoor() { const ctx = this.ctx, d = this.door; ctx.fillStyle = PAL.doorFrame; ctx.fillRect(d.x - 5, 0, 5, 45); ctx.fillRect(d.x + d.w, 0, 5, 45); ctx.fillRect(d.x - 5, 
+0, d.w + 10, 5); if (this.door.open) { ctx.fillStyle = PAL.doorWood; ctx.save(); ctx.translate(d.x, 45); ctx.rotate(-Math.PI / 3); ctx.fillRect(0, -40, 8, 40); 
+ctx.restore(); ctx.save(); ctx.translate(d.x + d.w, 45); ctx.rotate(Math.PI / 3); ctx.fillRect(-8, -40, 8, 40); ctx.restore(); } else { ctx.fillStyle = PAL.doorWood; 
+ctx.fillRect(d.x, 5, d.w / 2 - 1, 40); ctx.fillRect(d.x + d.w / 2 + 1, 5, d.w / 2 - 1, 40); ctx.fillStyle = PAL.doorHandle; ctx.fillRect(d.x + d.w / 2 - 5, 22, 3, 8); 
+ctx.fillRect(d.x + d.w / 2 + 2, 22, 3, 8); ctx.fillStyle = PAL.windowGlass; ctx.fillRect(d.x + 4, 10, 12, 15); ctx.fillRect(d.x + d.w - 16, 10, 12, 15); } },
+  drawFurniture() {
+    const ctx = this.ctx;
+    
+    // ═══ MAIN WORK TABLES ═══
+    [[220, 180], [320, 180], [220, 260], [320, 260]].forEach(([x, y]) => {
+      // Shadow
+      ctx.fillStyle = 'rgba(0,0,0,0.2)';
+      ctx.fillRect(x + 2, y + 33, 80, 4);
+      // Legs
+      ctx.fillStyle = PAL.tableLeg;
+      ctx.fillRect(x + 3, y + 28, 4, 8);
+      ctx.fillRect(x + 73, y + 28, 4, 8);
+      // Table top
+      ctx.fillStyle = PAL.tableTop;
+      ctx.fillRect(x, y, 80, 30);
+      // Highlight
+      ctx.fillStyle = 'rgba(255,255,255,0.08)';
+      ctx.fillRect(x, y, 80, 2);
+      // Random items on tables
+      ctx.fillStyle = PAL.metalMid;
+      ctx.fillRect(x + 8, y + 4, 10, 8);
+      ctx.fillStyle = PAL.equipBlue;
+      ctx.fillRect(x + 25, y + 6, 15, 5);
+      ctx.fillStyle = PAL.equipRed;
+      ctx.fillRect(x + 50, y + 3, 8, 8);
+      ctx.fillStyle = '#888';
+      ctx.fillRect(x + 65, y + 8, 10, 4);
+    });
+    
+    // ═══ ELECTRONICS WORKBENCH ═══
+    // Main bench
+    ctx.fillStyle = PAL.metalMid;
+    ctx.fillRect(30, 100, 120, 25);
+    ctx.fillStyle = PAL.metalLight;
+    ctx.fillRect(30, 100, 120, 2);
+    
+    // Oscilloscope
+    ctx.fillStyle = PAL.metalDark;
+    ctx.fillRect(35, 102, 28, 20);
+    ctx.fillStyle = '#112211';
+    ctx.fillRect(37, 104, 16, 12);
+    // Animated waveform
+    ctx.strokeStyle = PAL.equipGreen;
+    ctx.beginPath();
+    ctx.moveTo(38, 110);
+    for (let i = 0; i < 14; i++) {
+      ctx.lineTo(38 + i, 110 + Math.sin(i * 0.8 + this.time / 10) * 4);
+    }
+    ctx.stroke();
+    // Knobs
+    ctx.fillStyle = PAL.metalLight;
+    ctx.fillRect(55, 104, 5, 5);
+    ctx.fillRect(55, 112, 5, 5);
+    
+    // Soldering station
+    ctx.fillStyle = PAL.metalMid;
+    ctx.fillRect(70, 110, 20, 10);
+    ctx.fillStyle = PAL.metalDark;
+    ctx.fillRect(72, 104, 6, 8);
+    ctx.fillStyle = PAL.equipYellow;
+    ctx.fillRect(78, 102, 12, 4);
+    ctx.fillStyle = PAL.metalLight;
+    ctx.fillRect(88, 102, 4, 2);
+    // Sponge
+    ctx.fillStyle = '#aaaa44';
+    ctx.fillRect(80, 114, 8, 4);
+    
+    // Component bins
+    ctx.fillStyle = PAL.equipRed;
+    ctx.fillRect(100, 104, 10, 14);
+    ctx.fillStyle = PAL.equipBlue;
+    ctx.fillRect(112, 106, 10, 12);
+    ctx.fillStyle = PAL.equipYellow;
+    ctx.fillRect(124, 108, 10, 10);
+    ctx.fillStyle = PAL.equipGreen;
+    ctx.fillRect(136, 110, 10, 8);
+    
+    // Shelf above bench
+    ctx.fillStyle = PAL.metalDark;
+    ctx.fillRect(30, 78, 120, 14);
+    // Items on shelf
+    [PAL.equipRed, PAL.equipGreen, PAL.equipBlue, PAL.equipYellow, PAL.purple].forEach((c, i) => {
+      ctx.fillStyle = c;
+      ctx.fillRect(35 + i * 22, 82, 16, 8);
+    });
+    
+    // Stools
+    [[50, 135], [100, 135]].forEach(([x, y]) => {
+      ctx.fillStyle = PAL.metalDark;
+      ctx.fillRect(x + 4, y, 2, 10);
+      ctx.fillStyle = PAL.metalMid;
+      ctx.beginPath();
+      ctx.arc(x + 5, y - 2, 6, 0, Math.PI * 2);
+      ctx.fill();
+    });
+    
+    // ═══ 3D PRINTING ZONE ═══
+    // Printer table
+    ctx.fillStyle = PAL.metalMid;
+    ctx.fillRect(550, 100, 110, 25);
+    ctx.fillStyle = PAL.metalLight;
+    ctx.fillRect(550, 100, 110, 2);
+    
+    // Three 3D printers
+    [[555, 80], [595, 80], [635, 80]].forEach(([x, y]) => {
+      // Frame
+      ctx.fillStyle = PAL.metalDark;
+      ctx.fillRect(x, y, 28, 38);
+      // Build area
+      ctx.fillStyle = '#111';
+      ctx.fillRect(x + 2, y + 10, 24, 18);
+      // Build plate
+      ctx.fillStyle = PAL.metalMid;
+      ctx.fillRect(x + 4, y + 20, 20, 5);
+      // Moving print head
+      ctx.fillStyle = PAL.metalLight;
+      ctx.fillRect(x + 8 + Math.sin(this.time / 30 + x) * 5, y + 14, 8, 5);
+      // Screen
+      ctx.fillStyle = PAL.equipBlue;
+      ctx.fillRect(x + 8, y + 32, 12, 4);
+    });
+    
+    // Filament spools
+    [PAL.equipRed, PAL.equipBlue, PAL.equipGreen, PAL.yellow].forEach((c, i) => {
+      ctx.fillStyle = c;
+      ctx.beginPath();
+      ctx.arc(560 + i * 18, 138, 6, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = 'rgba(0,0,0,0.3)';
+      ctx.beginPath();
+      ctx.arc(560 + i * 18, 138, 2, 0, Math.PI * 2);
+      ctx.fill();
+    });
+    
+    // ═══ LASER CUTTER BAY ═══
+    // Laser cutter machine
+    ctx.fillStyle = PAL.metalDark;
+    ctx.fillRect(560, 260, 65, 40);
+    ctx.fillStyle = PAL.metalMid;
+    ctx.fillRect(562, 262, 61, 8);
+    // Viewing window
+    ctx.fillStyle = '#223344';
+    ctx.fillRect(565, 272, 55, 22);
+    // Laser flash effect
+    if (Math.sin(this.time / 10) > 0.8) {
+      ctx.fillStyle = 'rgba(255, 50, 50, 0.6)';
+      ctx.fillRect(590, 280, 3, 3);
+    }
+    // Status light
+    ctx.fillStyle = PAL.equipGreen;
+    ctx.fillRect(610, 293, 10, 5);
+    
+    // Control computer
+    ctx.fillStyle = PAL.metalDark;
+    ctx.fillRect(635, 260, 22, 18);
+    ctx.fillStyle = '#112233';
+    ctx.fillRect(637, 262, 18, 12);
+    // Screen content
+    ctx.fillStyle = PAL.equipGreen;
+    for (let i = 0; i < 3; i++) {
+      ctx.fillRect(638, 263 + i * 3, 6 + Math.random() * 6, 1);
+    }
+    
+    // Material storage bench
+    ctx.fillStyle = PAL.metalMid;
+    ctx.fillRect(550, 320, 110, 25);
+    // Materials
+    ctx.fillStyle = '#8b7355'; // Plywood
+    ctx.fillRect(560, 325, 40, 3);
+    ctx.fillStyle = '#aaccee'; // Acrylic
+    ctx.fillRect(562, 329, 35, 2);
+    ctx.fillStyle = '#ffccaa'; // MDF
+    ctx.fillRect(561, 333, 38, 3);
+    ctx.fillStyle = '#333'; // Black acrylic
+    ctx.fillRect(608, 326, 30, 3);
+    ctx.fillStyle = '#dd4444'; // Red acrylic
+    ctx.fillRect(610, 331, 25, 2);
+    
+    // ═══ LOUNGE AREA ═══
+    // Bookshelf
+    ctx.fillStyle = PAL.tableLeg;
+    ctx.fillRect(30, 250, 60, 18);
+    // Books
+    ['#aa3333', '#33aa33', '#3333aa', '#aaaa33', '#aa33aa', '#33aaaa'].forEach((c, i) => {
+      ctx.fillStyle = c;
+      const h = 10 + Math.random() * 4;
+      ctx.fillRect(34 + i * 8, 268 - h, 5, h);
+    });
+    
+    // The Couch
+    // Shadow
+    ctx.fillStyle = 'rgba(0,0,0,0.2)';
+    ctx.fillRect(37, 316, 80, 4);
+    // Base
+    ctx.fillStyle = '#4a3a5a';
+    ctx.fillRect(35, 288, 80, 30);
+    // Back
+    ctx.fillStyle = '#5a4a6a';
+    ctx.fillRect(35, 280, 80, 12);
+    // Cushions
+    ctx.fillStyle = '#6a5a7a';
+    [[38, 290], [58, 290], [78, 290], [98, 290]].forEach(([x, y]) => {
+      ctx.fillRect(x, y, 18, 16);
+    });
+    // Arms
+    ctx.fillStyle = '#4a3a5a';
+    ctx.fillRect(35, 288, 6, 26);
+    ctx.fillRect(109, 288, 6, 26);
+    
+    // Coffee table
+    ctx.fillStyle = PAL.tableLeg;
+    ctx.fillRect(42, 356, 3, 6);
+    ctx.fillRect(80, 356, 3, 6);
+    ctx.fillStyle = PAL.tableTop;
+    ctx.fillRect(40, 330, 45, 25);
+    // Mug
+    ctx.fillStyle = '#fff';
+    ctx.fillRect(55, 338, 10, 10);
+    ctx.fillStyle = '#654321';
+    ctx.fillRect(56, 339, 8, 8);
+    // Zines
+    ctx.fillStyle = '#ff6699';
+    ctx.fillRect(68, 335, 12, 8);
+    ctx.fillStyle = '#66ff99';
+    ctx.fillRect(70, 342, 10, 6);
+    
+    // Plant
+    ctx.fillStyle = '#8b4513';
+    ctx.fillRect(100, 340, 18, 14);
+    ctx.fillRect(98, 338, 22, 4);
+    ctx.fillStyle = '#228822';
+    ctx.fillRect(105, 325, 8, 16);
+    ctx.fillRect(101, 330, 6, 10);
+    ctx.fillRect(111, 332, 6, 8);
+    ctx.fillRect(107, 318, 4, 10);
+    
+    // Community Fridge
+    ctx.fillStyle = '#cccccc';
+    ctx.fillRect(130, 340, 28, 38);
+    ctx.fillStyle = '#aaaaaa';
+    ctx.fillRect(132, 343, 24, 16);
+    ctx.fillRect(132, 362, 24, 14);
+    // Handle
+    ctx.fillStyle = '#888888';
+    ctx.fillRect(152, 350, 2, 6);
+    ctx.fillRect(152, 368, 2, 4);
+    // Stickers
+    ctx.fillStyle = PAL.equipRed;
+    ctx.fillRect(136, 346, 5, 5);
+    ctx.fillStyle = PAL.equipBlue;
+    ctx.fillRect(144, 348, 7, 4);
+    ctx.fillStyle = PAL.equipYellow;
+    ctx.fillRect(138, 353, 6, 3);
+    ctx.fillStyle = '#ff66ff';
+    ctx.fillRect(135, 365, 8, 5);
+    
+    // ═══ WHITEBOARD ═══
+    ctx.fillStyle = '#ddd';
+    ctx.fillRect(420, 120, 60, 40);
+    ctx.strokeStyle = PAL.metalMid;
+    ctx.lineWidth = 2;
+    ctx.strokeRect(420, 120, 60, 40);
+    ctx.lineWidth = 1;
+    // Scribbles
+    ctx.fillStyle = '#333';
+    ctx.fillRect(425, 125, 20, 1);
+    ctx.fillRect(425, 128, 30, 1);
+    ctx.fillRect(425, 131, 15, 1);
+    ctx.fillStyle = PAL.equipRed;
+    ctx.fillRect(455, 126, 18, 1);
+    ctx.fillRect(456, 129, 12, 1);
+    ctx.fillStyle = PAL.equipBlue;
+    ctx.fillRect(430, 140, 20, 1);
+    ctx.fillRect(430, 143, 35, 1);
+    // Robot drawing
+    ctx.fillStyle = '#333';
+    ctx.fillRect(458, 138, 8, 12);
+    ctx.fillRect(460, 135, 4, 3);
+    // Markers on tray
+    ctx.fillStyle = PAL.equipRed;
+    ctx.fillRect(422, 157, 10, 3);
+    ctx.fillStyle = PAL.equipBlue;
+    ctx.fillRect(434, 157, 10, 3);
+    ctx.fillStyle = PAL.equipGreen;
+    ctx.fillRect(446, 157, 10, 3);
+    ctx.fillStyle = '#333';
+    ctx.fillRect(458, 157, 10, 3);
+    
+    // ═══ TRASH CANS ═══
+    [[180, 400], [500, 380]].forEach(([x, y]) => {
+      ctx.fillStyle = '#444455';
+      ctx.fillRect(x, y, 16, 20);
+      ctx.fillStyle = '#333344';
+      ctx.fillRect(x + 2, y + 2, 12, 3);
+    });
+    
+    // ═══ TOOL PEGBOARD (on left wall) ═══
+    ctx.fillStyle = '#3a3a3a';
+    ctx.fillRect(18, 160, 8, 60);
+    // Tools hanging
+    ctx.fillStyle = PAL.metalLight;
+    ctx.fillRect(19, 165, 6, 2); // Ruler
+    ctx.fillRect(20, 175, 4, 12); // Screwdriver
+    ctx.fillStyle = PAL.equipRed;
+    ctx.fillRect(20, 173, 4, 3); // Handle
+    ctx.fillStyle = PAL.metalMid;
+    ctx.fillRect(19, 195, 6, 8); // Pliers
+    ctx.fillStyle = PAL.equipYellow;
+    ctx.fillRect(20, 208, 4, 6); // Tape measure
+  },
+
+  drawPlayer() { this.drawCharacter(Math.floor(this.player.x), Math.floor(this.player.y), this.player, true); },
+  drawNPC(npc) {
+    const ctx = this.ctx, x = Math.floor(npc.x), y = Math.floor(npc.y);
+    this.drawCharacter(x, y, npc, false);
+    const idle = Math.sin(this.time / 30 + npc.x) * 0.5;
+    if (npc.type === 'newcomer') { const bob = Math.sin(this.time / 8) * 3; ctx.fillStyle = '#ffcc00'; ctx.font = 'bold 14px VT323'; ctx.textAlign = 'center'; 
+ctx.fillText('❓', x, y - 32 - idle + bob); }
+    else if (npc.type === 'toxic' && npc.toxicity > 40) { ctx.fillStyle = '#ff4444'; ctx.font = 'bold 12px VT323'; ctx.textAlign = 'center'; ctx.fillText('⚠', x, y - 30 - 
+idle); }
+    else if (npc.type === 'member' && npc.burnout > 60) { ctx.fillStyle = '#ff8844'; ctx.font = '10px VT323'; ctx.textAlign = 'center'; ctx.fillText('🔥', x, y - 30 - 
+idle); }
+    ctx.fillStyle = npc.type === 'toxic' ? '#ff6666' : npc.type === 'newcomer' ? '#ffcc00' : npc.talked ? '#66ff66' : '#ffffff';
+    ctx.font = '8px VT323'; ctx.textAlign = 'center'; ctx.fillText(npc.name, x, y - 24 - idle);
+  },
+
+  drawCharacter(x, y, char, isPlayer) {
+    const ctx = this.ctx, px = (ox, oy, c) => { ctx.fillStyle = c; ctx.fillRect(x + ox, y + oy, 2, 2); };
+    ctx.fillStyle = 'rgba(0,0,0,0.25)'; ctx.beginPath(); ctx.ellipse(x, y + 2, 6, 3, 0, 0, Math.PI * 2); ctx.fill();
+    const frame = char.frame || 0, dir = char.dir || 'down', moving = char.moving || ['walking', 'entering', 'leaving'].includes(char.state);
+    const bob = moving ? Math.sin(frame * Math.PI / 2) : (isPlayer ? 0 : Math.sin(this.time / 30 + x) * 0.3);
+    const legL = moving ? Math.sin(frame * Math.PI / 2) * 2 : 0, legR = moving ? -Math.sin(frame * Math.PI / 2) * 2 : 0;
+    const skin = PAL[char.skinTone] || PAL.skin2, hair = PAL[char.hairColor] || PAL.hairBrown, shirt = PAL[char.shirtColor] || PAL.red;
+    const shirtDark = this.darken(shirt, 30);
+    px(-3, -2 + legL, '#1a1a1a'); px(-1, -2 + legL, '#1a1a1a'); px(1, -2 + legR, '#1a1a1a'); px(3, -2 + legR, '#1a1a1a');
+    px(-3, -4 + legL, '#2a2a3a'); px(-1, -4 + legL, '#2a2a3a'); px(1, -4 + legR, '#2a2a3a'); px(3, -4 + legR, '#2a2a3a');
+    px(-3, -6, '#2a2a3a'); px(-1, -6, '#2a2a3a'); px(1, -6, '#2a2a3a'); px(3, -6, '#2a2a3a');
+    for (let ty = -8; ty >= -14; ty -= 2) { px(-3, ty - bob, ty === -8 ? shirtDark : shirt); px(-1, ty - bob, shirt); px(1, ty - bob, shirt); px(3, ty - bob, ty === -8 ? 
+shirtDark : shirt); }
+    if (dir === 'left') { px(-5, -10 - bob, skin); px(-5, -8 - bob, skin); } else if (dir === 'right') { px(5, -10 - bob, skin); px(5, -8 - bob, skin); } else { px(-5, -10 
+- bob, skin); px(5, -10 - bob, skin); }
+    const headY = -16 - bob; px(-3, headY, skin); px(-1, headY, skin); px(1, headY, skin); px(3, headY, skin); px(-3, headY - 2, skin); px(-1, headY - 2, skin); px(1, headY 
+- 2, skin); px(3, headY - 2, skin);
+    px(-3, headY - 4, hair); px(-1, headY - 4, hair); px(1, headY - 4, hair); px(3, headY - 4, hair); if (dir !== 'up') { px(-3, headY - 2, hair); px(3, headY - 2, hair); }
+    if (dir !== 'up') { const eyeOff = dir === 'left' ? -1 : dir === 'right' ? 1 : 0; px(-1 + eyeOff, headY, '#111'); px(1 + eyeOff, headY, '#111'); }
+    if (isPlayer) { ctx.fillStyle = PAL.equipGreen; ctx.beginPath(); ctx.moveTo(x, y - 24 - bob); ctx.lineTo(x - 3, y - 28 - bob); ctx.lineTo(x + 3, y - 28 - bob); 
+ctx.closePath(); ctx.fill(); }
+  },
+
+  darken(hex, amt) { const num = parseInt(hex.replace('#', ''), 16); return '#' + [16, 8, 0].map(s => Math.max(0, ((num >> s) & 0xff) - amt).toString(16).padStart(2, 
+'0')).join(''); }
+};
+
+document.addEventListener('DOMContentLoaded', () => Game.init());
+</script>
+</body>
+</html>
+
